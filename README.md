@@ -236,7 +236,7 @@ Output:   Markdown transcript + JSON for analysis
 
 ## Tips
 
-- **PDF and LaTeX both work**: PDF files are automatically detected and converted to text via `pdftotext` (install with `brew install poppler` on macOS or `apt install poppler-utils` on Linux). LaTeX source is often even better, since models can see `\cite{}` references, equation structure, and section labels. If your paper uses `\input{}`, flatten it first with `latexpand main.tex > paper.tex`.
+- **PDF and LaTeX both work**: PDF files are automatically detected and converted to text via `pdftotext` (install with `brew install poppler` on macOS or via the appropriate package manager on Linux distributions). LaTeX source is often even better, since models can see `\cite{}` references, equation structure, and section labels. If your paper uses `\input{}`, flatten it first with `latexpand main.tex > paper.tex`.
 - **Always specify the venue**: Without an acceptance rate, reviewers default to a generic mid-range journal standard, which may be too strict for conferences or too lenient for top journals.
 - **Start with 2 rounds**: In our experience, verdicts stabilize quickly. Additional rounds add cost but may not change assessments substantially — though this is itself an empirical question worth studying.
 - **Mix cloud and local**: Including local models is free and adds diversity. Even if a local model is weaker overall, it may catch issues that cloud models miss.
