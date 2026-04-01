@@ -49,6 +49,7 @@ Configuration for a review panel session.
    e.g. `(0.10, 0.15)` for 10–15%. `(0.0, 0.0)` means unspecified.
 - `venue::String`: Description of the venue (journal, conference, etc.)
 - `venue_type::Symbol`: `:journal`, `:conference`, `:workshop`, or `:unspecified`
+- `refereeing::Bool`: Whether to include accept/reject recommendations (default: false)
 """
 Base.@kwdef mutable struct ReviewConfig
     rounds::Int = 2
@@ -60,6 +61,7 @@ Base.@kwdef mutable struct ReviewConfig
     acceptance_rate::Tuple{Float64, Float64} = (0.0, 0.0)
     venue::String = ""
     venue_type::Symbol = :unspecified
+    refereeing::Bool = false
 end
 
 """

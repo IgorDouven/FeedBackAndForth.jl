@@ -79,6 +79,9 @@ panel = review("paper.tex",
 # Request numerical scores alongside prose reviews
 panel = review("paper.tex", scores=true)
 
+# Include accept/reject recommendations (referee mode)
+panel = review("paper.tex", refereeing=true)
+
 # Custom meta-reviewer
 panel = review("paper.tex", meta="deepseek")
 ```
@@ -120,6 +123,22 @@ panel = review("abstract.tex",
 The acceptance rate is specified as a tuple of proportions `(lo, hi)` giving a range. The package translates this into calibration instructions for the reviewers: venues below 15% trigger highly rigorous standards, while venues above 50% prompt reviewers to focus on basic quality and clear contribution. The venue name and type (`:journal`, `:conference`, `:workshop`) are included in the reviewer instructions to provide additional context.
 
 If no acceptance rate is specified, the reviewers default to a generic standard roughly corresponding to a mid-range journal.
+
+### Refereeing Mode
+
+By default, reviews focus on constructive feedback — strengths, weaknesses, questions — without accept/reject verdicts. To include accept/reject recommendations (as in a formal referee report), set `refereeing=true`:
+
+```julia
+# Full referee mode with venue calibration
+panel = review("paper.tex",
+    refereeing = true,
+    venue = "Mind",
+    venue_type = :journal,
+    acceptance_rate = (0.05, 0.10)
+)
+```
+
+When `refereeing=true`, each review includes an overall assessment verdict (strong accept / accept / weak accept / borderline / weak reject / reject), the meta-review includes an overall recommendation, and venue calibration guidance is phrased in terms of acceptance standards. When `refereeing=false` (the default), the same review structure is produced but without verdict language — useful when you want diagnostic feedback rather than a simulated editorial decision.
 
 ### Including Local Models
 

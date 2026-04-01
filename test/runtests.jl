@@ -89,9 +89,55 @@ using FeedBackAndForth
         @test isempty(rc.providers)
         @test rc.verbose == true
         @test rc.request_scores == false
+        @test rc.refereeing == false
         @test rc.acceptance_rate == (0.0, 0.0)
         @test isempty(rc.venue)
         @test rc.venue_type == :unspecified
+    end
+
+    @testset "Refereeing prompt selection" begin
+        FeedBackAndForth._prompts_init()
+        prompts = FeedBackAndForth.DEFAULT_PROMPTS
+
+        # Default (no refereeing) — no verdict language
+        rc = ReviewConfig()
+        rp = FeedBackAndForth.get_review_prompt(prompts, rc)
+        @test !contains(rp, "strong accept")
+        @test !contains(rp, "verdict")
+        @test contains(rp, "Do not provide an accept/reject")
+
+        # With refereeing — verdict language present
+        rc_ref = ReviewConfig(refereeing=true)
+        rp_ref = FeedBackAndForth.get_review_prompt(prompts, rc_ref)
+        @test contains(rp_ref, "strong accept")
+        @test contains(rp_ref, "verdict")
+
+        # Scores + no refereeing — scores present, no verdict
+        rc_scores = ReviewConfig(request_scores=true)
+        rp_scores = FeedBackAndForth.get_review_prompt(prompts, rc_scores)
+        @test contains(rp_scores, "Novelty:")
+        @test !contains(rp_scores, "strong accept")
+        @test contains(rp_scores, "Do not provide an accept/reject")
+
+        # Scores + refereeing — both present
+        rc_both = ReviewConfig(request_scores=true, refereeing=true)
+        rp_both = FeedBackAndForth.get_review_prompt(prompts, rc_both)
+        @test contains(rp_both, "Novelty:")
+        @test contains(rp_both, "strong accept")
+
+        # Meta-review without refereeing — no "Overall recommendation" task
+        mp = FeedBackAndForth.get_metareview_prompt(prompts, rc)
+        @test !contains(mp, "Overall recommendation")
+        @test contains(mp, "Do not provide an accept/reject")
+
+        # Meta-review with refereeing — recommendation present
+        mp_ref = FeedBackAndForth.get_metareview_prompt(prompts, rc_ref)
+        @test contains(mp_ref, "Overall recommendation")
+
+        # Author response prompts
+        @test !contains(prompts["author_response_no_verdict"], "verdict")
+        @test !contains(prompts["author_response_no_verdict"], "Final verdict")
+        @test contains(prompts["author_response"], "verdict")
     end
 
     @testset "Venue context generation" begin
@@ -142,7 +188,24 @@ using FeedBackAndForth
         # No venue → prompt is unchanged
         rc_empty = ReviewConfig()
         rp_empty = FeedBackAndForth.get_review_prompt(prompts, rc_empty)
-        @test rp_empty == prompts["review"]
+        @test rp_empty == prompts["review_no_verdict"]
+
+        # Venue context with refereeing includes verdict calibration
+        rc_ref = ReviewConfig(
+            venue="Mind", venue_type=:journal,
+            acceptance_rate=(0.05, 0.10), refereeing=true
+        )
+        ctx_ref = FeedBackAndForth._venue_context(rc_ref)
+        @test contains(ctx_ref, "positive verdict")
+
+        # Venue context without refereeing omits verdict calibration
+        rc_noref = ReviewConfig(
+            venue="Mind", venue_type=:journal,
+            acceptance_rate=(0.05, 0.10), refereeing=false
+        )
+        ctx_noref = FeedBackAndForth._venue_context(rc_noref)
+        @test !contains(ctx_noref, "positive verdict")
+        @test contains(ctx_noref, "highly selective")
     end
 
 end

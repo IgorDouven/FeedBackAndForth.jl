@@ -21,6 +21,20 @@ weak accept / borderline / weak reject / reject) with justification.
 Be specific: cite sections, equations, or page numbers where possible. \
 Be honest but collegial."""
 
+    DEFAULT_PROMPTS["review_no_verdict"] = """
+You are a rigorous but constructive academic reviewer. You have deep expertise \
+across the sciences, formal methods, philosophy, and computational approaches. \
+Provide a thorough, structured review of the paper you are given. Cover:
+
+1. **Summary**: A concise summary of the paper's main contribution(s).
+2. **Strengths**: What the paper does well (novelty, methodology, clarity, etc.).
+3. **Weaknesses**: Substantive issues, gaps, or unclear points.
+4. **Minor issues**: Writing, notation, presentational suggestions.
+5. **Questions for the authors**: Specific points you'd like clarified.
+
+Be specific: cite sections, equations, or page numbers where possible. \
+Be honest but collegial. Do not provide an accept/reject recommendation."""
+
     DEFAULT_PROMPTS["review_with_scores"] = """
 You are a rigorous but constructive academic reviewer. You have deep expertise \
 across the sciences, formal methods, philosophy, and computational approaches. \
@@ -42,6 +56,26 @@ weak accept / borderline / weak reject / reject) with justification.
 
 Be specific: cite sections, equations, or page numbers where possible. \
 Be honest but collegial."""
+
+    DEFAULT_PROMPTS["review_with_scores_no_verdict"] = """
+You are a rigorous but constructive academic reviewer. You have deep expertise \
+across the sciences, formal methods, philosophy, and computational approaches. \
+Provide a thorough, structured review of the paper you are given. Cover:
+
+1. **Summary**: A concise summary of the paper's main contribution(s).
+2. **Strengths**: What the paper does well (novelty, methodology, clarity, etc.).
+3. **Weaknesses**: Substantive issues, gaps, or unclear points.
+4. **Minor issues**: Writing, notation, presentational suggestions.
+5. **Questions for the authors**: Specific points you'd like clarified.
+6. **Scores** (rate each on a scale of 1–10):
+   - Novelty: [score]
+   - Methodology: [score]
+   - Clarity: [score]
+   - Significance: [score]
+   - Overall: [score]
+
+Be specific: cite sections, equations, or page numbers where possible. \
+Be honest but collegial. Do not provide an accept/reject recommendation."""
 
     DEFAULT_PROMPTS["discussion"] = """
 You are participating in round {ROUND} of a multi-reviewer discussion \
@@ -79,6 +113,22 @@ insights that others missed — this is useful for understanding model diversity
 
 Be concise but thorough. The goal is an actionable summary for the authors."""
 
+    DEFAULT_PROMPTS["metareview_no_verdict"] = """
+You are the meta-reviewer for this paper. You have access to the paper itself \
+and to the full discussion among the review panel (multiple AI models from \
+different providers). Your task:
+
+1. **Synthesize**: Summarize the key points of agreement and disagreement.
+2. **Adjudicate**: Where reviewers disagree, give your own assessment of who \
+has the stronger argument.
+3. **Consolidate feedback**: Produce a single, prioritized list of the most \
+important issues the authors should address.
+4. **Meta-observations**: Note if certain models contributed distinctive \
+insights that others missed — this is useful for understanding model diversity.
+
+Be concise but thorough. The goal is an actionable summary for the authors. \
+Do not provide an accept/reject recommendation."""
+
     DEFAULT_PROMPTS["author_response"] = """
 You are participating in a follow-up round of a multi-reviewer discussion \
 panel. The authors have now responded to the panel's feedback. Your task:
@@ -93,6 +143,21 @@ change your recommendation? State explicitly if your verdict changes.
 
 Be fair but rigorous. Give credit where authors have addressed issues \
 substantively, but flag unresolved problems clearly."""
+
+    DEFAULT_PROMPTS["author_response_no_verdict"] = """
+You are participating in a follow-up round of a multi-reviewer discussion \
+panel. The authors have now responded to the panel's feedback. Your task:
+
+1. **Evaluate the response**: Did the authors adequately address your concerns \
+and those of the other reviewers?
+2. **Identify remaining issues**: Are there concerns that were deflected or \
+inadequately addressed?
+3. **Update your assessment**: Based on the authors' response, has your \
+overall evaluation of the paper changed? Explain how and why.
+
+Be fair but rigorous. Give credit where authors have addressed issues \
+substantively, but flag unresolved problems clearly. \
+Do not provide an accept/reject recommendation."""
 end
 
 """
@@ -142,7 +207,12 @@ function get_prompts(config::ReviewConfig)
 end
 
 function get_review_prompt(prompts::Dict, config::ReviewConfig)
-    base = config.request_scores ? prompts["review_with_scores"] : prompts["review"]
+    key = if config.request_scores
+        config.refereeing ? "review_with_scores" : "review_with_scores_no_verdict"
+    else
+        config.refereeing ? "review" : "review_no_verdict"
+    end
+    base = prompts[key]
     ctx = _venue_context(config)
     return isempty(ctx) ? base : ctx * "\n\n" * base
 end
@@ -154,7 +224,8 @@ function get_discussion_prompt(prompts::Dict, round_num::Int, config::ReviewConf
 end
 
 function get_metareview_prompt(prompts::Dict, config::ReviewConfig)
-    base = prompts["metareview"]
+    key = config.refereeing ? "metareview" : "metareview_no_verdict"
+    base = prompts[key]
     ctx = _venue_context(config)
     return isempty(ctx) ? base : ctx * "\n\n" * base
 end
@@ -189,27 +260,48 @@ function _venue_context(config::ReviewConfig)
         end
         push!(parts, "The acceptance rate for this venue is $rate_str.")
 
-        # Calibration guidance
-        if hi <= 0.15
-            push!(parts, "This is a highly selective venue. Apply rigorous standards: " *
-                         "only papers making a clear, significant contribution should " *
-                         "receive a positive verdict. Acceptable papers must demonstrate " *
-                         "novelty, methodological soundness, and substantial significance.")
-        elseif hi <= 0.30
-            push!(parts, "This is a selective venue. Papers should demonstrate clear " *
-                         "merit in terms of novelty and execution to warrant acceptance.")
-        elseif hi <= 0.50
-            push!(parts, "This venue has a moderate acceptance rate. Sound papers with " *
-                         "a clear contribution should be accepted, but raise concerns " *
-                         "about any significant weaknesses.")
-        elseif hi <= 0.70
-            push!(parts, "This venue has a relatively high acceptance rate. Focus your " *
-                         "review on whether the paper meets basic standards of quality " *
-                         "and makes a reasonable contribution to the field.")
+        # Calibration guidance (only when refereeing)
+        if config.refereeing
+            if hi <= 0.15
+                push!(parts, "This is a highly selective venue. Apply rigorous standards: " *
+                             "only papers making a clear, significant contribution should " *
+                             "receive a positive verdict. Acceptable papers must demonstrate " *
+                             "novelty, methodological soundness, and substantial significance.")
+            elseif hi <= 0.30
+                push!(parts, "This is a selective venue. Papers should demonstrate clear " *
+                             "merit in terms of novelty and execution to warrant acceptance.")
+            elseif hi <= 0.50
+                push!(parts, "This venue has a moderate acceptance rate. Sound papers with " *
+                             "a clear contribution should be accepted, but raise concerns " *
+                             "about any significant weaknesses.")
+            elseif hi <= 0.70
+                push!(parts, "This venue has a relatively high acceptance rate. Focus your " *
+                             "review on whether the paper meets basic standards of quality " *
+                             "and makes a reasonable contribution to the field.")
+            else
+                push!(parts, "This venue has a high acceptance rate. Focus on identifying " *
+                             "fundamental flaws; papers meeting basic quality standards " *
+                             "should generally be accepted.")
+            end
         else
-            push!(parts, "This venue has a high acceptance rate. Focus on identifying " *
-                         "fundamental flaws; papers meeting basic quality standards " *
-                         "should generally be accepted.")
+            if hi <= 0.15
+                push!(parts, "This is a highly selective venue. Apply rigorous standards " *
+                             "and evaluate the paper's novelty, methodology, and significance " *
+                             "accordingly.")
+            elseif hi <= 0.30
+                push!(parts, "This is a selective venue. Evaluate the paper with high " *
+                             "expectations for novelty and execution.")
+            elseif hi <= 0.50
+                push!(parts, "This venue has a moderate acceptance rate. Evaluate the paper " *
+                             "for clear contributions while noting any significant weaknesses.")
+            elseif hi <= 0.70
+                push!(parts, "This venue has a relatively high acceptance rate. Focus your " *
+                             "review on whether the paper meets basic standards of quality " *
+                             "and makes a reasonable contribution to the field.")
+            else
+                push!(parts, "This venue has a high acceptance rate. Focus on identifying " *
+                             "fundamental flaws rather than minor issues.")
+            end
         end
     end
 

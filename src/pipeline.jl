@@ -200,7 +200,7 @@ function _run_author_response(paper::String, all_rounds::Vector{RoundResult},
     # Compile the last round's reviews for context
     last_reviews = all_rounds[end].reviews
 
-    system = prompts["author_response"]
+    system = config.refereeing ? prompts["author_response"] : prompts["author_response_no_verdict"]
 
     for (key, prov) in providers
         own = get(last_reviews, key, "")

@@ -121,8 +121,9 @@ end
 
 """
     review(paper_path; rounds=2, providers=String[], meta="",
-           scores=false, prompts_file="", output="", verbose=true,
-           acceptance_rate=(0.0, 0.0), venue="", venue_type=:unspecified) -> ReviewPanel
+           scores=false, refereeing=false, prompts_file="", output="",
+           verbose=true, acceptance_rate=(0.0, 0.0), venue="",
+           venue_type=:unspecified) -> ReviewPanel
 
 Run a full review panel session on a paper.
 
@@ -132,6 +133,7 @@ Run a full review panel session on a paper.
 - `providers`: Provider keys to use (default: all with available API keys)
 - `meta`: Which provider writes the meta-review (default: first available)
 - `scores`: Request structured numerical scores alongside prose
+- `refereeing`: Include accept/reject recommendations (default: false)
 - `prompts_file`: Path to a TOML file with custom prompts
 - `output`: Output file path (empty = auto-generate)
 - `verbose`: Print progress messages
@@ -148,10 +150,10 @@ using FeedBackAndForth
 # Basic usage — auto-detects available providers
 panel = review("paper.tex")
 
-# Specific providers, 3 rounds, with scores
+# Specific providers, 3 rounds, with scores and refereeing
 panel = review("paper.tex", rounds=3,
                providers=["claude", "openai", "deepseek"],
-               scores=true)
+               scores=true, refereeing=true)
 
 # Calibrated to a selective philosophy journal
 panel = review("paper.tex",
@@ -185,6 +187,7 @@ function review(paper_path::AbstractString;
                 providers::Vector{String}=String[],
                 meta::AbstractString="",
                 scores::Bool=false,
+                refereeing::Bool=false,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
                 verbose::Bool=true,
@@ -197,7 +200,8 @@ function review(paper_path::AbstractString;
 
     config = ReviewConfig(
         rounds=rounds, providers=providers, meta_provider=string(meta),
-        request_scores=scores, prompts_file=string(prompts_file),
+        request_scores=scores, refereeing=refereeing,
+        prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
         venue=string(venue), venue_type=venue_type

@@ -26,6 +26,15 @@ panel = review("my_paper.tex",
 )
 save_markdown(panel, "review_cogsci.md")
 
+# ─── With refereeing (accept/reject verdicts) ───
+panel = review("my_paper.tex",
+    refereeing = true,
+    venue = "Mind",
+    venue_type = :journal,
+    acceptance_rate = (0.05, 0.10)
+)
+save_markdown(panel, "review_mind.md")
+
 # ─── With a local model via Ollama ───
 add_provider!("local_qwen",
     endpoint = "http://localhost:11434/v1/chat/completions",
