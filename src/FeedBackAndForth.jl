@@ -21,6 +21,7 @@ export
     Provider,
     add_provider!,
     remove_provider!,
+    set_model!,
     list_providers,
     available_providers,
     # Configuration

@@ -18,6 +18,17 @@ using FeedBackAndForth
         end
     end
 
+    @testset "set_model!" begin
+        old_model = list_providers()["gemini"].model
+        set_model!("gemini", "gemini-2.5-pro")
+        @test list_providers()["gemini"].model == "gemini-2.5-pro"
+        # Restore original
+        set_model!("gemini", old_model)
+        @test list_providers()["gemini"].model == old_model
+        # Unknown provider should error
+        @test_throws ErrorException set_model!("nonexistent", "some-model")
+    end
+
     @testset "Custom provider registration" begin
         add_provider!("test_local",
             endpoint="http://localhost:11434/v1/chat/completions",

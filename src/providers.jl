@@ -21,8 +21,8 @@ function _init_providers!()
         "gemini" => Provider(
             "Gemini (Google)", "GOOGLE_API_KEY",
             "https://generativelanguage.googleapis.com/v1beta/models",
-            "gemini-2.0-flash", :google, 8192,
-            0.0001, 0.0004
+            "gemini-2.5-flash", :google, 8192,
+            0.00015, 0.0006
         ),
         "deepseek" => Provider(
             "DeepSeek", "DEEPSEEK_API_KEY",
@@ -95,6 +95,33 @@ function add_provider!(key::AbstractString;
         cost_per_1k_input, cost_per_1k_output
     )
     @info "Registered provider '$(key)': $(name) at $(endpoint)"
+    return nothing
+end
+
+"""
+    set_model!(key, model)
+
+Change the model for an existing provider. Useful for switching to a newer
+or different model without re-registering the provider.
+
+# Example
+
+```julia
+set_model!("gemini", "gemini-2.5-pro")
+set_model!("claude", "claude-opus-4-20250514")
+```
+"""
+function set_model!(key::AbstractString, model::String)
+    key = string(key)
+    if !haskey(PROVIDER_REGISTRY, key)
+        error("Unknown provider '$key'. Use list_providers() to see available providers.")
+    end
+    old = PROVIDER_REGISTRY[key]
+    PROVIDER_REGISTRY[key] = Provider(
+        old.name, old.api_key_env, old.endpoint, model, old.format,
+        old.max_tokens, old.cost_per_1k_input, old.cost_per_1k_output
+    )
+    @info "Updated provider '$key' model: $(old.model) → $model"
     return nothing
 end
 
