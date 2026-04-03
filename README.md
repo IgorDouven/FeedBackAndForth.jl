@@ -82,8 +82,18 @@ panel = review("paper.tex", scores=true)
 # Include accept/reject recommendations (referee mode)
 panel = review("paper.tex", refereeing=true)
 
-# Custom meta-reviewer
+# Custom meta-reviewer (from the panel)
+# By default, the first provider in the list writes the meta-review.
 panel = review("paper.tex", meta="deepseek")
+
+# Independent meta-reviewer (not on the panel)
+# This provider reads the paper and all discussion rounds fresh,
+# without having committed to positions during the discussion —
+# similar to an area chair in real peer review.
+panel = review("paper.tex",
+    providers = ["gemma", "phi", "qwen"],
+    meta = "claude"
+)
 ```
 
 ### Venue Calibration
@@ -140,6 +150,39 @@ panel = review("paper.tex",
 
 When `refereeing=true`, each review includes an overall assessment verdict (strong accept / accept / weak accept / borderline / weak reject / reject), the meta-review includes an overall recommendation, and venue calibration guidance is phrased in terms of acceptance standards. When `refereeing=false` (the default), the same review structure is produced but without verdict language — useful when you want diagnostic feedback rather than a simulated editorial decision.
 
+### Detail Levels
+
+By default, reviews provide a high-level structured assessment. The `detail` option (1–3) asks reviewers to ground their feedback more concretely in the text of the paper:
+
+```julia
+# Standard review (default)
+panel = review("paper.tex", detail=1)
+
+# Detailed: reviewers cite specific sections, explain issues concretely,
+# and suggest specific improvements
+panel = review("paper.tex", detail=2)
+
+# Passage-level: reviewers quote short excerpts from the paper and comment
+# on each one, working through the paper section by section
+panel = review("paper.tex", detail=3)
+```
+
+- **Level 1** (default): The standard structured review — summary, strengths, weaknesses, questions, and overall assessment.
+- **Level 2**: Same structure, but reviewers are asked to cite specific sections/equations, explain each issue concretely, and suggest concrete improvements. Produces roughly 1.5–2× more output.
+- **Level 3**: Adds a **passage-level commentary** section where reviewers quote short excerpts verbatim and comment on each, classified as `[strength]`, `[weakness]`, `[clarity]`, `[suggestion]`, or `[question]`. This aims for 10–25 individual passage-level comments, followed by the usual structured review. Produces roughly 2.5–3× more output.
+
+Detail composes freely with all other options:
+
+```julia
+panel = review("paper.tex",
+    detail = 3, scores = true, refereeing = true,
+    venue = "Mind", venue_type = :journal,
+    acceptance_rate = (0.05, 0.10)
+)
+```
+
+**Token limits are scaled automatically**: at higher detail levels, the maximum output tokens sent to each provider are scaled up (1.8× for level 2, 3× for level 3) so that models have room to produce longer reviews without truncation. This applies to both cloud and local providers.
+
 ### Including Local Models
 
 Any Ollama, LM Studio, vLLM, or llama.cpp server works out of the box — they all serve an OpenAI-compatible API:
@@ -166,6 +209,17 @@ panel = review("paper.tex",
 ```
 
 Local models have zero API cost, which is useful for both budget-conscious reviews and for studying the cloud/local performance gap.
+
+**Note on `max_tokens`**: Local providers default to `max_tokens=4096` (vs 8192 for cloud providers). The package automatically scales this up at higher detail levels, but if you find reviews are being truncated, you can set a higher base value when registering:
+
+```julia
+add_provider!("local_qwen",
+    endpoint = "http://localhost:11434/v1/chat/completions",
+    model = "qwen2.5:72b",
+    name = "Qwen 2.5 72B (local)",
+    max_tokens = 8192
+)
+```
 
 ### Author Response Cycle
 
@@ -200,6 +254,9 @@ Before running, estimate the cost:
 ```julia
 # For a 40,000-character paper with 3 providers and 2 rounds
 estimate_cost(40_000; n_providers=3, rounds=2)  # returns USD
+
+# Account for higher detail level
+estimate_cost(40_000; n_providers=3, rounds=2, detail=3)
 
 # After running, inspect actual usage
 panel.cost  # shows per-provider token counts and costs
@@ -255,7 +312,7 @@ Output:   Markdown transcript + JSON for analysis
 
 ## Tips
 
-- **PDF and LaTeX both work**: PDF files are automatically detected and converted to text via `pdftotext` (install with `brew install poppler` on macOS or via the appropriate package manager on Linux distributions). LaTeX source is often even better, since models can see `\cite{}` references, equation structure, and section labels. If your paper uses `\input{}`, flatten it first with `latexpand main.tex > paper.tex`.
+- **PDF and LaTeX both work**: PDF files are automatically detected and converted to text via `pdftotext` (install with `brew install poppler` on macOS or via the appropriate package manager on Linux distributions). LaTeX source is often even better, since models can see `\cite{}` references, equation structure, and section labels. If your paper uses `\input{}`, flatten it first with `latexpand main.tex > paper.tex`. **Note:** When reviewing `.tex` files, the models see raw LaTeX source, so their reviews may quote LaTeX markup (e.g., `\emph{...}`, `\cite{...}`, equation environments). This is expected and generally useful — the LaTeX references make it easier to locate the passages being discussed. If you prefer cleaner output, consider converting your paper to plain text first.
 - **Always specify the venue**: Without an acceptance rate, reviewers default to a generic mid-range journal standard, which may be too strict for conferences or too lenient for top journals.
 - **Start with 2 rounds**: In our experience, verdicts stabilize quickly. Additional rounds add cost but may not change assessments substantially — though this is itself an empirical question worth studying.
 - **Mix cloud and local**: Including local models is free and adds diversity. Even if a local model is weaker overall, it may catch issues that cloud models miss.

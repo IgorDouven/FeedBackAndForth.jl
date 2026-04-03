@@ -50,6 +50,7 @@ Configuration for a review panel session.
 - `venue::String`: Description of the venue (journal, conference, etc.)
 - `venue_type::Symbol`: `:journal`, `:conference`, `:workshop`, or `:unspecified`
 - `refereeing::Bool`: Whether to include accept/reject recommendations (default: false)
+- `detail::Int`: Level of detail in reviews (1 = standard, 2 = detailed, 3 = passage-level)
 """
 Base.@kwdef mutable struct ReviewConfig
     rounds::Int = 2
@@ -62,6 +63,7 @@ Base.@kwdef mutable struct ReviewConfig
     venue::String = ""
     venue_type::Symbol = :unspecified
     refereeing::Bool = false
+    detail::Int = 1
 end
 
 """

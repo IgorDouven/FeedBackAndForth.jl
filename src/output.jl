@@ -21,6 +21,10 @@ function save_markdown(panel::ReviewPanel, path::String="")
     names = [p.name for (_, p) in panel.providers_used]
     println(io, "**Panelists**: $(join(names, ", "))\n")
     println(io, "**Rounds**: $(length(panel.rounds))\n")
+    if panel.config.detail > 1
+        detail_label = panel.config.detail == 2 ? "Detailed" : "Passage-level"
+        println(io, "**Detail level**: $(panel.config.detail) ($detail_label)\n")
+    end
     if !isempty(panel.config.venue)
         println(io, "**Venue**: $(panel.config.venue)\n")
     end
@@ -87,6 +91,7 @@ function save_json(panel::ReviewPanel, path::String="")
         "config" => Dict(
             "rounds" => panel.config.rounds,
             "request_scores" => panel.config.request_scores,
+            "detail" => panel.config.detail,
             "acceptance_rate" => [panel.config.acceptance_rate...],
             "venue" => panel.config.venue,
             "venue_type" => string(panel.config.venue_type),

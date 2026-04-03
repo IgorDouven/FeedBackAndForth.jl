@@ -214,20 +214,26 @@ function get_review_prompt(prompts::Dict, config::ReviewConfig)
     end
     base = prompts[key]
     ctx = _venue_context(config)
-    return isempty(ctx) ? base : ctx * "\n\n" * base
+    detail = _detail_instructions(config.detail, :review)
+    prompt = isempty(ctx) ? base : ctx * "\n\n" * base
+    return isempty(detail) ? prompt : prompt * detail
 end
 
 function get_discussion_prompt(prompts::Dict, round_num::Int, config::ReviewConfig)
     base = replace(prompts["discussion"], "{ROUND}" => string(round_num))
     ctx = _venue_context(config)
-    return isempty(ctx) ? base : ctx * "\n\n" * base
+    detail = _detail_instructions(config.detail, :discussion)
+    prompt = isempty(ctx) ? base : ctx * "\n\n" * base
+    return isempty(detail) ? prompt : prompt * "\n\n" * detail
 end
 
 function get_metareview_prompt(prompts::Dict, config::ReviewConfig)
     key = config.refereeing ? "metareview" : "metareview_no_verdict"
     base = prompts[key]
     ctx = _venue_context(config)
-    return isempty(ctx) ? base : ctx * "\n\n" * base
+    detail = _detail_instructions(config.detail, :metareview)
+    prompt = isempty(ctx) ? base : ctx * "\n\n" * base
+    return isempty(detail) ? prompt : prompt * "\n\n" * detail
 end
 
 """
@@ -306,6 +312,94 @@ function _venue_context(config::ReviewConfig)
     end
 
     return join(parts, " ")
+end
+
+"""
+    _detail_instructions(detail::Int, phase::Symbol) -> String
+
+Return additional prompt instructions for the given detail level and phase.
+`phase` is one of `:review`, `:discussion`, or `:metareview`.
+Level 1 returns "" (the default behavior). Levels 2 and 3 add progressively
+more specific instructions asking reviewers to ground their feedback in the
+text of the paper.
+"""
+function _detail_instructions(detail::Int, phase::Symbol)
+    detail <= 1 && return ""
+
+    if phase == :review
+        if detail == 2
+            return """
+
+## Additional instructions — detailed feedback
+
+Go beyond high-level observations. For every strength or weakness you identify:
+- **Cite the specific section, theorem, figure, or equation** you are referring to.
+- **Explain concretely** what the issue is (e.g., an unstated assumption, a gap in \
+the argument, an ambiguous definition) rather than giving a generic label.
+- **Suggest a concrete improvement** where possible (e.g., "Theorem 2 would benefit \
+from an explicit statement of the regularity conditions" rather than "some assumptions \
+are missing").
+- For clarity issues, give an example of a sentence or passage that confused you \
+and explain why.
+
+Aim for a review that the authors can act on point-by-point."""
+        else  # detail == 3
+            return """
+
+## Additional instructions — passage-level commentary
+
+Provide **passage-level feedback**: work through the paper from beginning to end and \
+comment on specific passages where you see issues or noteworthy contributions. For each:
+- **Quote a short excerpt** (one or two sentences) from the paper verbatim.
+- **Comment** on that excerpt: explain the problem, the strength, the ambiguity, \
+or the suggestion.
+- **Classify** each comment as one of: [strength], [weakness], [clarity], [suggestion], \
+[question].
+
+After the passage-level commentary, provide your usual structured review (summary, \
+strengths, weaknesses, questions, assessment). The passage-level section should come \
+first and constitute the bulk of the review.
+
+Aim to cover every major section of the paper. Be thorough: a good passage-level \
+review typically produces 10–25 individual comments depending on paper length."""
+        end
+
+    elseif phase == :discussion
+        if detail == 2
+            return """
+
+When responding to other reviews and updating your assessment, remain concrete: \
+cite specific sections, equations, or passages from the paper. If you agree or \
+disagree with another reviewer's point, explain *why* with reference to the text."""
+        else  # detail == 3
+            return """
+
+When responding to other reviews and updating your assessment, continue to provide \
+passage-level commentary where relevant. If another reviewer's point draws your \
+attention to a passage you overlooked, quote the passage and give your own assessment. \
+If you disagree with another reviewer's reading of a specific passage, quote it and \
+explain your interpretation."""
+        end
+
+    elseif phase == :metareview
+        if detail == 2
+            return """
+
+When synthesizing the panel's feedback, be concrete: reference specific sections \
+and issues from the paper, not just the reviewers' labels. The consolidated feedback \
+list should be actionable at the level of specific passages or results."""
+        else  # detail == 3
+            return """
+
+When synthesizing the panel's feedback, organize the consolidated feedback around \
+specific passages and sections of the paper. Where multiple reviewers commented on \
+the same passage, note the convergence or divergence. Quote key passages that were \
+points of contention. The goal is a meta-review the authors can use as a \
+section-by-section revision guide."""
+        end
+    else
+        return ""
+    end
 end
 
 # Initialize on load

@@ -7,6 +7,17 @@ function _log(config::ReviewConfig, msg::String)
 end
 
 """
+    _effective_max_tokens(provider, config) -> Int
+
+Scale a provider's max_tokens based on the configured detail level.
+Level 1 uses the provider default; level 2 scales by 1.8×; level 3 by 3×.
+"""
+function _effective_max_tokens(prov::Provider, config::ReviewConfig)
+    factor = config.detail == 1 ? 1.0 : config.detail == 2 ? 1.8 : 3.0
+    return round(Int, prov.max_tokens * factor)
+end
+
+"""
     _run_round1(paper, providers, prompts, config, cost) -> RoundResult
 
 Each provider independently reviews the paper.
@@ -23,7 +34,8 @@ function _run_round1(paper::String, providers::Vector{Tuple{String, Provider}},
         _log(config, "  ⏳ Requesting review from $(prov.name)...")
         t0 = time()
         try
-            text, tokens = call_llm(prov, system, paper)
+            text, tokens = call_llm(prov, system, paper;
+                                    max_tokens=_effective_max_tokens(prov, config))
             dt = round(time() - t0; digits=1)
             _log(config, "  ✅ $(prov.name) responded ($(dt)s, " *
                          "$(tokens.input)+$(tokens.output) tokens)")
@@ -94,7 +106,8 @@ Please provide your discussion response and updated assessment."""
         _log(config, "  ⏳ $(prov.name) deliberating (round $round_num)...")
         t0 = time()
         try
-            text, tokens = call_llm(prov, system, user_msg)
+            text, tokens = call_llm(prov, system, user_msg;
+                                    max_tokens=_effective_max_tokens(prov, config))
             dt = round(time() - t0; digits=1)
             _log(config, "  ✅ $(prov.name) responded ($(dt)s, " *
                          "$(tokens.input)+$(tokens.output) tokens)")
@@ -150,7 +163,8 @@ Please provide your meta-review."""
     _log(config, "  ⏳ $(prov.name) writing meta-review...")
     t0 = time()
     try
-        text, tokens = call_llm(prov, get_metareview_prompt(prompts, config), user_msg)
+        text, tokens = call_llm(prov, get_metareview_prompt(prompts, config), user_msg;
+                                max_tokens=_effective_max_tokens(prov, config))
         dt = round(time() - t0; digits=1)
         _log(config, "  ✅ Meta-review complete ($(dt)s, $(tokens.input)+$(tokens.output) tokens)")
         record!(cost, key, tokens.input, tokens.output)
@@ -229,7 +243,8 @@ Please evaluate the authors' response and provide your updated assessment."""
         _log(config, "  ⏳ $(prov.name) evaluating author response...")
         t0 = time()
         try
-            text, tokens = call_llm(prov, system, user_msg)
+            text, tokens = call_llm(prov, system, user_msg;
+                                    max_tokens=_effective_max_tokens(prov, config))
             dt = round(time() - t0; digits=1)
             _log(config, "  ✅ $(prov.name) responded ($(dt)s)")
             reviews[key] = text

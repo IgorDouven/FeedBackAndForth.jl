@@ -80,15 +80,17 @@ function cost_summary(ct::CostTracker)
 end
 
 """
-    estimate_cost(paper_chars::Int; n_providers=3, rounds=2, with_meta=true) -> Float64
+    estimate_cost(paper_chars::Int; n_providers=3, rounds=2, with_meta=true, detail=1) -> Float64
 
 Rough a priori cost estimate in USD for a review session.
 Uses average provider pricing. Useful for budgeting before running.
+`detail` (1–3) scales expected output length: level 2 ≈ 1.8×, level 3 ≈ 3×.
 """
 function estimate_cost(paper_chars::Int; n_providers::Int=3, rounds::Int=2,
-                       with_meta::Bool=true)
+                       with_meta::Bool=true, detail::Int=1)
     paper_tokens = paper_chars ÷ 4  # rough char-to-token ratio
-    review_output = 2000  # estimated tokens per review
+    detail_factor = detail == 1 ? 1.0 : detail == 2 ? 1.8 : 3.0
+    review_output = round(Int, 2000 * detail_factor)  # estimated tokens per review
 
     # Round 1: each provider sees the paper
     r1_input = paper_tokens * n_providers

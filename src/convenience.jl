@@ -121,7 +121,8 @@ end
 
 """
     review(paper_path; rounds=2, providers=String[], meta="",
-           scores=false, refereeing=false, prompts_file="", output="",
+           scores=false, refereeing=false, detail=1,
+           prompts_file="", output="",
            verbose=true, acceptance_rate=(0.0, 0.0), venue="",
            venue_type=:unspecified) -> ReviewPanel
 
@@ -131,9 +132,13 @@ Run a full review panel session on a paper.
 - `paper_path`: Path to the paper (`.tex`, `.txt`, `.md`, etc.)
 - `rounds`: Total rounds (1 = independent only, 2 = reviews + 1 discussion, etc.)
 - `providers`: Provider keys to use (default: all with available API keys)
-- `meta`: Which provider writes the meta-review (default: first available)
+- `meta`: Which provider writes the meta-review (default: first in `providers`).
+   Can be a provider that is not in `providers`, in which case it acts as an
+   independent meta-reviewer that did not participate in the discussion rounds.
 - `scores`: Request structured numerical scores alongside prose
 - `refereeing`: Include accept/reject recommendations (default: false)
+- `detail`: Level of detail (1 = standard, 2 = detailed with concrete citations,
+   3 = passage-level commentary). Default: 1
 - `prompts_file`: Path to a TOML file with custom prompts
 - `output`: Output file path (empty = auto-generate)
 - `verbose`: Print progress messages
@@ -154,6 +159,9 @@ panel = review("paper.tex")
 panel = review("paper.tex", rounds=3,
                providers=["claude", "openai", "deepseek"],
                scores=true, refereeing=true)
+
+# Passage-level detailed review
+panel = review("paper.tex", detail=3)
 
 # Calibrated to a selective philosophy journal
 panel = review("paper.tex",
@@ -188,6 +196,7 @@ function review(paper_path::AbstractString;
                 meta::AbstractString="",
                 scores::Bool=false,
                 refereeing::Bool=false,
+                detail::Int=1,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
                 verbose::Bool=true,
@@ -198,9 +207,11 @@ function review(paper_path::AbstractString;
     _ensure_init()
     t_start = time()
 
+    detail in 1:3 || error("detail must be 1, 2, or 3 (got $detail)")
+
     config = ReviewConfig(
         rounds=rounds, providers=providers, meta_provider=string(meta),
-        request_scores=scores, refereeing=refereeing,
+        request_scores=scores, refereeing=refereeing, detail=detail,
         prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
@@ -224,10 +235,24 @@ function review(paper_path::AbstractString;
     end
     _log(config, "🤖 Panel: $(join([p.name for (_, p) in provs], ", "))\n")
 
-    # Choose meta-reviewer
+    # Choose meta-reviewer (may be a non-participating provider)
     meta_key = config.meta_provider
-    meta_prov = if !isempty(meta_key) && any(k == meta_key for (k, _) in provs)
-        first(filter(x -> x[1] == meta_key, provs))
+    meta_prov = if !isempty(meta_key)
+        if any(k == meta_key for (k, _) in provs)
+            # Meta-reviewer is one of the panelists
+            first(filter(x -> x[1] == meta_key, provs))
+        elseif haskey(PROVIDER_REGISTRY, meta_key)
+            # Meta-reviewer is a registered but non-participating provider
+            p = PROVIDER_REGISTRY[meta_key]
+            if !is_local(p) && isempty(get(ENV, p.api_key_env, ""))
+                error("Meta-reviewer '$meta_key' requires API key ($(p.api_key_env) not set).")
+            end
+            _log(config, "📋 Independent meta-reviewer: $(p.name) (not on the panel)\n")
+            (meta_key, p)
+        else
+            error("Unknown meta-reviewer provider '$meta_key'. " *
+                  "Register it first with add_provider!().")
+        end
     else
         provs[1]
     end

@@ -140,6 +140,53 @@ using FeedBackAndForth
         @test contains(prompts["author_response"], "verdict")
     end
 
+    @testset "Detail level" begin
+        FeedBackAndForth._prompts_init()
+        prompts = FeedBackAndForth.DEFAULT_PROMPTS
+
+        # Default detail=1 produces no extra instructions
+        rc1 = ReviewConfig()
+        @test rc1.detail == 1
+        rp1 = FeedBackAndForth.get_review_prompt(prompts, rc1)
+        @test !contains(rp1, "passage-level")
+        @test !contains(rp1, "Quote a short excerpt")
+
+        # Detail=2 adds concrete citation instructions
+        rc2 = ReviewConfig(detail=2)
+        rp2 = FeedBackAndForth.get_review_prompt(prompts, rc2)
+        @test contains(rp2, "Cite the specific section")
+        @test contains(rp2, "concrete improvement")
+        dp2 = FeedBackAndForth.get_discussion_prompt(prompts, 2, rc2)
+        @test contains(dp2, "cite specific sections")
+        mp2 = FeedBackAndForth.get_metareview_prompt(prompts, rc2)
+        @test contains(mp2, "actionable")
+
+        # Detail=3 adds passage-level commentary
+        rc3 = ReviewConfig(detail=3)
+        rp3 = FeedBackAndForth.get_review_prompt(prompts, rc3)
+        @test contains(rp3, "passage-level")
+        @test contains(rp3, "Quote a short excerpt")
+        dp3 = FeedBackAndForth.get_discussion_prompt(prompts, 2, rc3)
+        @test contains(dp3, "passage-level commentary")
+        mp3 = FeedBackAndForth.get_metareview_prompt(prompts, rc3)
+        @test contains(mp3, "section-by-section")
+
+        # Detail composes with other options (scores, venue)
+        rc_combo = ReviewConfig(detail=3, request_scores=true,
+                                venue="Mind", venue_type=:journal)
+        rp_combo = FeedBackAndForth.get_review_prompt(prompts, rc_combo)
+        @test contains(rp_combo, "Novelty:")       # scores
+        @test contains(rp_combo, "Mind")            # venue
+        @test contains(rp_combo, "passage-level")   # detail
+
+        # Cost estimation scales with detail
+        c1 = estimate_cost(10_000; n_providers=3, rounds=2, detail=1)
+        c2 = estimate_cost(10_000; n_providers=3, rounds=2, detail=2)
+        c3 = estimate_cost(10_000; n_providers=3, rounds=2, detail=3)
+        @test c2 > c1
+        @test c3 > c2
+    end
+
     @testset "Venue context generation" begin
         # No venue info → empty string
         rc = ReviewConfig()

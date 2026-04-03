@@ -10,7 +10,7 @@ a NamedTuple of token usage: `(input=..., output=...)`.
 Retries on transient network errors with exponential backoff.
 """
 function call_llm(provider::Provider, system_prompt::String, user_message::String;
-                  retries::Int=3)
+                  retries::Int=3, max_tokens::Int=provider.max_tokens)
     api_key = if isempty(provider.api_key_env)
         ""  # local models don't need a key
     else
@@ -25,11 +25,11 @@ function call_llm(provider::Provider, system_prompt::String, user_message::Strin
     for attempt in 1:retries
         try
             if provider.format == :anthropic
-                return _call_anthropic(provider, system_prompt, user_message, api_key)
+                return _call_anthropic(provider, system_prompt, user_message, api_key; max_tokens)
             elseif provider.format == :openai
-                return _call_openai(provider, system_prompt, user_message, api_key)
+                return _call_openai(provider, system_prompt, user_message, api_key; max_tokens)
             elseif provider.format == :google
-                return _call_google(provider, system_prompt, user_message, api_key)
+                return _call_google(provider, system_prompt, user_message, api_key; max_tokens)
             else
                 error("Unknown provider format: $(provider.format)")
             end
@@ -67,7 +67,8 @@ function _is_transient(e)
     return false
 end
 
-function _call_anthropic(provider::Provider, system::String, user::String, key::String)
+function _call_anthropic(provider::Provider, system::String, user::String, key::String;
+                         max_tokens::Int=provider.max_tokens)
     headers = [
         "x-api-key" => key,
         "anthropic-version" => "2023-06-01",
@@ -75,7 +76,7 @@ function _call_anthropic(provider::Provider, system::String, user::String, key::
     ]
     body = JSON3.write(Dict(
         "model" => provider.model,
-        "max_tokens" => provider.max_tokens,
+        "max_tokens" => max_tokens,
         "system" => system,
         "messages" => [Dict("role" => "user", "content" => user)]
     ))
@@ -93,14 +94,15 @@ function _call_anthropic(provider::Provider, system::String, user::String, key::
     return text, tokens
 end
 
-function _call_openai(provider::Provider, system::String, user::String, key::String)
+function _call_openai(provider::Provider, system::String, user::String, key::String;
+                      max_tokens::Int=provider.max_tokens)
     headers = ["Content-Type" => "application/json"]
     if !isempty(key)
         push!(headers, "Authorization" => "Bearer $key")
     end
     body = JSON3.write(Dict(
         "model" => provider.model,
-        "max_tokens" => provider.max_tokens,
+        "max_tokens" => max_tokens,
         "messages" => [
             Dict("role" => "system", "content" => system),
             Dict("role" => "user", "content" => user),
@@ -120,13 +122,14 @@ function _call_openai(provider::Provider, system::String, user::String, key::Str
     return text, tokens
 end
 
-function _call_google(provider::Provider, system::String, user::String, key::String)
+function _call_google(provider::Provider, system::String, user::String, key::String;
+                      max_tokens::Int=provider.max_tokens)
     url = "$(provider.endpoint)/$(provider.model):generateContent?key=$key"
     headers = ["Content-Type" => "application/json"]
     body = JSON3.write(Dict(
         "system_instruction" => Dict("parts" => [Dict("text" => system)]),
         "contents" => [Dict("parts" => [Dict("text" => user)])],
-        "generationConfig" => Dict("maxOutputTokens" => provider.max_tokens)
+        "generationConfig" => Dict("maxOutputTokens" => max_tokens)
     ))
     resp = HTTP.post(url, headers, body;
                      status_exception=false, connect_timeout=30, readtimeout=600)
