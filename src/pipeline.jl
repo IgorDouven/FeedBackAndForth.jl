@@ -262,3 +262,224 @@ Please evaluate the authors' response and provide your updated assessment."""
     round_num = length(all_rounds) + 1
     return RoundResult(round_num, reviews, timestamps, elapsed)
 end
+
+# ─────────────────────────────────────────────────────────────────────
+# Selection (Batch) Pipeline
+# ─────────────────────────────────────────────────────────────────────
+
+"""
+    _load_submissions(dir, config) -> (bundle, files, lengths)
+
+Load all submissions from a directory, concatenate with clear labels.
+Returns the bundle string, ordered filenames, and per-file character counts.
+"""
+function _load_submissions(dir::String, config::ReviewConfig)
+    entries = sort(readdir(dir))
+    valid_ext = (".tex", ".txt", ".md", ".pdf")
+    entries = filter(f -> lowercase(last(splitext(f))) in valid_ext, entries)
+
+    if isempty(entries)
+        error("No submissions found in $dir (looked for .tex, .txt, .md, .pdf files)")
+    end
+
+    files = String[]
+    lengths = Int[]
+    parts = String[]
+
+    for (i, fname) in enumerate(entries)
+        path = joinpath(dir, fname)
+        _log(config, "  📄 [$i/$(length(entries))] $fname")
+        text = _load_paper(path, config)
+        push!(files, fname)
+        push!(lengths, length(text))
+        push!(parts, "═══ Submission $i: $fname ═══\n\n$text")
+    end
+
+    bundle = join(parts, "\n\n")
+
+    # Warn about context window size
+    approx_tokens = length(bundle) ÷ 4
+    if approx_tokens > 100_000
+        @warn "Submission bundle is ~$(round(Int, approx_tokens/1000))k tokens. " *
+              "This may exceed the context window of some models. " *
+              "Consider using frontier models with large context windows."
+    end
+
+    return bundle, files, lengths
+end
+
+"""
+    _run_calibration(bundle, providers, prompts, config, n_submissions, cost) -> RoundResult
+
+Phase 1: Each provider reads all submissions and produces a calibration report.
+"""
+function _run_calibration(bundle::String, providers::Vector{Tuple{String, Provider}},
+                          prompts::Dict, config::ReviewConfig, n_submissions::Int,
+                          cost::CostTracker)
+    reviews = Dict{String, String}()
+    timestamps = Dict{String, DateTime}()
+    elapsed = Dict{String, Float64}()
+
+    system = get_selection_prompt(prompts, :calibration, config, n_submissions)
+
+    for (key, prov) in providers
+        _log(config, "  ⏳ $(prov.name) reading all submissions...")
+        t0 = time()
+        try
+            text, tokens = call_llm(prov, system, bundle;
+                                    max_tokens=_effective_max_tokens(prov, config))
+            dt = round(time() - t0; digits=1)
+            _log(config, "  ✅ $(prov.name) calibrated ($(dt)s, " *
+                         "$(tokens.input)+$(tokens.output) tokens)")
+            reviews[key] = text
+            timestamps[key] = now()
+            elapsed[key] = dt
+            record!(cost, key, tokens.input, tokens.output)
+        catch e
+            dt = round(time() - t0; digits=1)
+            @warn "$(prov.name) failed during calibration after $(dt)s" exception=e
+            reviews[key] = "[ERROR: $(prov.name) did not respond — $(sprint(showerror, e))]"
+            timestamps[key] = now()
+            elapsed[key] = dt
+        end
+    end
+    return RoundResult(1, reviews, timestamps, elapsed)
+end
+
+"""
+    _run_selection_discussion(bundle, calibrations, providers, prompts, config,
+                              n_submissions, cost) -> RoundResult
+
+Phase 2: Each provider sees all other calibrations and debates rankings.
+"""
+function _run_selection_discussion(bundle::String, calibrations::Dict{String, String},
+                                   providers::Vector{Tuple{String, Provider}},
+                                   prompts::Dict, config::ReviewConfig,
+                                   n_submissions::Int, cost::CostTracker)
+    reviews = Dict{String, String}()
+    timestamps = Dict{String, DateTime}()
+    elapsed = Dict{String, Float64}()
+
+    system = get_selection_prompt(prompts, :discussion, config, n_submissions)
+
+    for (key, prov) in providers
+        others = _format_other_reviews(calibrations, key)
+        own = get(calibrations, key, "")
+
+        user_msg = """
+## All Submissions
+
+$bundle
+
+## Your Calibration Report
+
+$own
+
+## Other Committee Members' Reports
+
+$others
+
+---
+
+Please provide your discussion response and updated ranking."""
+
+        _log(config, "  ⏳ $(prov.name) discussing rankings...")
+        t0 = time()
+        try
+            text, tokens = call_llm(prov, system, user_msg;
+                                    max_tokens=_effective_max_tokens(prov, config))
+            dt = round(time() - t0; digits=1)
+            _log(config, "  ✅ $(prov.name) responded ($(dt)s, " *
+                         "$(tokens.input)+$(tokens.output) tokens)")
+            reviews[key] = text
+            timestamps[key] = now()
+            elapsed[key] = dt
+            record!(cost, key, tokens.input, tokens.output)
+        catch e
+            dt = round(time() - t0; digits=1)
+            @warn "$(prov.name) failed during discussion" exception=e
+            reviews[key] = calibrations[key]  # fall back to calibration
+            timestamps[key] = now()
+            elapsed[key] = dt
+        end
+    end
+    return RoundResult(2, reviews, timestamps, elapsed)
+end
+
+"""
+    _run_selection_metareview(bundle, calibration, discussion, providers,
+                              meta_prov, prompts, config, n_submissions, cost) -> String
+
+Phase 3: The meta-reviewer produces the final selection.
+"""
+function _run_selection_metareview(bundle::String,
+                                   calibration::RoundResult, discussion::RoundResult,
+                                   providers::Vector{Tuple{String, Provider}},
+                                   meta_prov::Tuple{String, Provider},
+                                   prompts::Dict, config::ReviewConfig,
+                                   n_submissions::Int, cost::CostTracker)
+    parts = String[]
+    push!(parts, "═══════ Calibration Reports ═══════\n")
+    for (key, text) in calibration.reviews
+        name = haskey(PROVIDER_REGISTRY, key) ? PROVIDER_REGISTRY[key].name : key
+        push!(parts, "── $name ──\n$text\n")
+    end
+    push!(parts, "\n═══════ Discussion ═══════\n")
+    for (key, text) in discussion.reviews
+        name = haskey(PROVIDER_REGISTRY, key) ? PROVIDER_REGISTRY[key].name : key
+        push!(parts, "── $name ──\n$text\n")
+    end
+    history = join(parts, "\n")
+
+    user_msg = """
+## All Submissions
+
+$bundle
+
+## Committee Discussion
+
+$history
+
+---
+
+Please provide your final selection."""
+
+    system = get_selection_prompt(prompts, :metareview, config, n_submissions)
+    key, prov = meta_prov
+
+    _log(config, "  ⏳ $(prov.name) making final selection...")
+    t0 = time()
+    try
+        text, tokens = call_llm(prov, system, user_msg;
+                                max_tokens=_effective_max_tokens(prov, config))
+        dt = round(time() - t0; digits=1)
+        _log(config, "  ✅ Final selection complete ($(dt)s, " *
+                     "$(tokens.input)+$(tokens.output) tokens)")
+        record!(cost, key, tokens.input, tokens.output)
+        return text
+    catch e
+        dt = round(time() - t0; digits=1)
+        @warn "$(prov.name) failed writing selection after $(dt)s" exception=e
+
+        # Try fallback
+        for (fkey, fprov) in providers
+            fkey == key && continue
+            _log(config, "  🔄 Falling back to $(fprov.name) for selection...")
+            t0 = time()
+            try
+                text, tokens = call_llm(fprov, system, user_msg;
+                                        max_tokens=_effective_max_tokens(fprov, config))
+                dt = round(time() - t0; digits=1)
+                _log(config, "  ✅ Selection complete via $(fprov.name) ($(dt)s)")
+                record!(cost, fkey, tokens.input, tokens.output)
+                return text
+            catch e2
+                @warn "$(fprov.name) also failed" exception=e2
+                continue
+            end
+        end
+
+        @warn "All providers failed for selection. Returning placeholder."
+        return "[SELECTION UNAVAILABLE: All providers failed.]"
+    end
+end

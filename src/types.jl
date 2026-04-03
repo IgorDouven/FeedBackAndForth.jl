@@ -51,6 +51,7 @@ Configuration for a review panel session.
 - `venue_type::Symbol`: `:journal`, `:conference`, `:workshop`, or `:unspecified`
 - `refereeing::Bool`: Whether to include accept/reject recommendations (default: false)
 - `detail::Int`: Level of detail in reviews (1 = standard, 2 = detailed, 3 = passage-level)
+- `accept::Int`: Number of submissions to accept (used by `select()`, 0 = derive from acceptance_rate)
 """
 Base.@kwdef mutable struct ReviewConfig
     rounds::Int = 2
@@ -64,6 +65,7 @@ Base.@kwdef mutable struct ReviewConfig
     venue_type::Symbol = :unspecified
     refereeing::Bool = false
     detail::Int = 1
+    accept::Int = 0
 end
 
 """
@@ -104,4 +106,38 @@ mutable struct ReviewPanel
     meta_provider_key::String
     total_elapsed::Float64
     cost::Any  # CostTracker, defined in costs.jl
+end
+
+"""
+    SelectionPanel
+
+Complete results from a batch selection session.
+
+# Fields
+- `submission_dir::String`: Directory containing the submissions
+- `submission_files::Vector{String}`: Ordered list of submission filenames
+- `submission_lengths::Vector{Int}`: Character counts per submission
+- `n_accept::Int`: Target number of acceptances
+- `config::ReviewConfig`: Configuration used
+- `providers_used::Vector{Tuple{String, Provider}}`: Active providers
+- `calibration::RoundResult`: Phase 1 — independent calibration reports
+- `discussion::RoundResult`: Phase 2 — panel discussion on rankings
+- `selection::String`: Phase 3 — final selection meta-review
+- `meta_provider_key::String`: Which provider wrote the final selection
+- `total_elapsed::Float64`: Total wall-clock time (seconds)
+- `cost::Any`: CostTracker
+"""
+mutable struct SelectionPanel
+    submission_dir::String
+    submission_files::Vector{String}
+    submission_lengths::Vector{Int}
+    n_accept::Int
+    config::ReviewConfig
+    providers_used::Vector{Tuple{String, Provider}}
+    calibration::RoundResult
+    discussion::RoundResult
+    selection::String
+    meta_provider_key::String
+    total_elapsed::Float64
+    cost::Any  # CostTracker
 end

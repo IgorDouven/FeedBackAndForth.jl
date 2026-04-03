@@ -287,6 +287,7 @@ end
 
 ## Pipeline
 
+**Review** (`review()`):
 ```
 Round 1:  Each LLM independently reviews the paper
    ↓
@@ -295,6 +296,17 @@ Round 2+: Each LLM reads all other reviews and responds
   (...)   Additional discussion rounds (configurable)
    ↓
 Meta:     One LLM synthesizes the full discussion
+   ↓
+Output:   Markdown transcript + JSON for analysis
+```
+
+**Batch Selection** (`select()`):
+```
+Phase 1:  Each LLM reads ALL submissions, tiers and ranks them
+   ↓
+Phase 2:  Committee members debate, focusing on borderline cases
+   ↓
+Phase 3:  Program chair produces the final accept/reject list
    ↓
 Output:   Markdown transcript + JSON for analysis
 ```
@@ -309,6 +321,44 @@ Output:   Markdown transcript + JSON for analysis
 | `deepseek` | DeepSeek        | deepseek-chat            | OpenAI-compatible   |
 | `mistral`  | Mistral         | mistral-large-latest     | OpenAI-compatible   |
 | *(custom)* | Ollama / vLLM / LM Studio / ... | any           | OpenAI-compatible   |
+
+### Batch Selection
+
+For conference organizers: `select()` evaluates a directory of submissions as a batch, rather than reviewing papers individually. The LLM panel first reads *all* submissions to calibrate to the overall quality level, then discusses and debates rankings, and finally produces a selection — mirroring how a real program committee works.
+
+```julia
+# Select submissions for a conference (specify target number of accepts)
+panel = select("submissions/",
+    accept = 50,
+    venue = "EPSA 2026",
+    venue_type = :conference
+)
+
+# Or derive the accept count from an acceptance rate
+panel = select("submissions/",
+    acceptance_rate = (0.20, 0.30),
+    venue = "EPSA 2026",
+    venue_type = :conference
+)
+
+# With specific providers and an independent program chair
+panel = select("submissions/",
+    accept = 50,
+    providers = ["claude", "gemini"],
+    meta = "openai",
+    detail = 2
+)
+
+save_markdown(panel)
+save_json(panel)
+```
+
+The three-phase pipeline:
+1. **Calibration**: Each LLM reads all submissions, forms an overall quality impression, and assigns tiers (Strong Accept / Accept / Borderline / Reject / Strong Reject) with a ranked list.
+2. **Discussion**: The committee members see each other's tierings, debate borderline cases, and revise their rankings.
+3. **Final Selection**: The program chair (meta-reviewer) produces the definitive accept/reject list with justifications.
+
+**Context window requirements**: All submissions are sent to each LLM in a single prompt. This works well for typical conference scenarios (e.g., 250 extended abstracts of ~800 words ≈ 200K tokens), but requires frontier models with large context windows (Claude, Gemini). Local models and smaller cloud models will likely not be able to handle large batches. For very large conferences (1000+ submissions), this approach is currently not feasible due to context window limits.
 
 ### Changing Models
 

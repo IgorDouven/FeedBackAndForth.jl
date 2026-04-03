@@ -17,6 +17,7 @@ export
     # Main entry points
     review,
     review_and_respond,
+    select,
     # Provider management
     Provider,
     add_provider!,
@@ -29,6 +30,7 @@ export
     load_prompts,
     # Output
     ReviewPanel,
+    SelectionPanel,
     save_markdown,
     save_json,
     # Cost tracking

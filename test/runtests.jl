@@ -198,6 +198,50 @@ using FeedBackAndForth
         @test c3 > c2
     end
 
+    @testset "Selection prompts" begin
+        FeedBackAndForth._prompts_init()
+        prompts = FeedBackAndForth.DEFAULT_PROMPTS
+
+        # Selection prompts should exist
+        @test haskey(prompts, "selection_calibration")
+        @test haskey(prompts, "selection_discussion")
+        @test haskey(prompts, "selection_metareview")
+
+        # Prompt substitution
+        rc = ReviewConfig(accept=15)
+        sp = FeedBackAndForth.get_selection_prompt(prompts, :calibration, rc, 50)
+        @test contains(sp, "50")   # N_SUBMISSIONS
+        @test contains(sp, "15")   # N_ACCEPT
+        @test !contains(sp, "{N_SUBMISSIONS}")
+        @test !contains(sp, "{N_ACCEPT}")
+
+        # Discussion and metareview prompts also substitute
+        dp = FeedBackAndForth.get_selection_prompt(prompts, :discussion, rc, 50)
+        @test contains(dp, "50")
+        mp = FeedBackAndForth.get_selection_prompt(prompts, :metareview, rc, 50)
+        @test contains(mp, "15")
+
+        # Venue context gets prepended
+        rc_venue = ReviewConfig(accept=10, venue="EPSA 2026",
+                                venue_type=:conference,
+                                acceptance_rate=(0.20, 0.30))
+        sp_venue = FeedBackAndForth.get_selection_prompt(prompts, :calibration,
+                                                         rc_venue, 40)
+        @test contains(sp_venue, "EPSA 2026")
+        @test contains(sp_venue, "Read all submissions")  # still has calibration text
+
+        # Detail levels for selection
+        rc_d2 = ReviewConfig(accept=10, detail=2)
+        sp_d2 = FeedBackAndForth.get_selection_prompt(prompts, :calibration,
+                                                       rc_d2, 20)
+        @test contains(sp_d2, "Cite specific")
+
+        rc_d3 = ReviewConfig(accept=10, detail=3)
+        sp_d3 = FeedBackAndForth.get_selection_prompt(prompts, :calibration,
+                                                       rc_d3, 20)
+        @test contains(sp_d3, "passage-level")
+    end
+
     @testset "Venue context generation" begin
         # No venue info → empty string
         rc = ReviewConfig()

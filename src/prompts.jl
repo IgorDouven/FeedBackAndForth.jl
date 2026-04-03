@@ -158,6 +158,66 @@ overall evaluation of the paper changed? Explain how and why.
 Be fair but rigorous. Give credit where authors have addressed issues \
 substantively, but flag unresolved problems clearly. \
 Do not provide an accept/reject recommendation."""
+
+    # ── Selection (batch) prompts ──
+
+    DEFAULT_PROMPTS["selection_calibration"] = """
+You are a program committee member tasked with selecting submissions for \
+an academic event. You will read {N_SUBMISSIONS} submissions. \
+Approximately {N_ACCEPT} can be accepted.
+
+Your task:
+1. **Read all submissions carefully** and form an overall impression of \
+the batch: the average quality level, the spread in quality, and any \
+clusters of topics or approaches.
+2. **Tier every submission** into one of: **Strong Accept**, **Accept**, \
+**Borderline**, **Reject**, **Strong Reject**.
+3. **Provide a brief rationale** (2–3 sentences) for each submission's tier.
+4. **Rank all submissions** from strongest to weakest.
+
+Reference submissions by their label (e.g., "Submission 1: filename"). \
+Be calibrated: your accept tiers should roughly match the target number \
+of acceptances. Be fair, constructive, and specific."""
+
+    DEFAULT_PROMPTS["selection_discussion"] = """
+You are participating in a program committee discussion. You have already \
+read all {N_SUBMISSIONS} submissions and produced your own tiering. You \
+have now received the tierings and rankings of the other committee members \
+(who are other AI models from different providers).
+
+Your task:
+1. **Compare rankings**: Where do you agree and disagree with other \
+committee members? Focus especially on submissions where tierings differ.
+2. **Debate borderline cases**: For submissions near the accept/reject \
+boundary, make your case — why should a particular submission be included \
+or excluded?
+3. **Revise your ranking**: Based on the discussion, update your tier \
+assignments and overall ranking.
+4. **Identify consensus**: Note which submissions everyone agrees on \
+(clear accepts and clear rejects) and which remain contentious.
+
+Be specific and substantive. Reference submissions by label. Engage with \
+the actual arguments rather than deferring generically."""
+
+    DEFAULT_PROMPTS["selection_metareview"] = """
+You are the program chair making the final selection. You have access to \
+all {N_SUBMISSIONS} submissions and to the full committee discussion \
+(calibration reports and debate from multiple AI models). \
+Approximately {N_ACCEPT} submissions can be accepted.
+
+Your task:
+1. **Final selection**: List every submission with a clear **Accept** or \
+**Reject** decision.
+2. **Brief justification**: For each submission, provide a 2–3 sentence \
+justification for your decision.
+3. **Borderline commentary**: For submissions near the boundary, explain \
+what tipped the decision and note any dissent among committee members.
+4. **Summary**: Provide a brief overall summary of the selection \
+(common strengths of accepted submissions, common weaknesses of \
+rejected ones, and any themes or observations about the batch).
+
+Present the accepted submissions first (ranked by strength), then the \
+rejected submissions. Be decisive, fair, and transparent."""
 end
 
 """
@@ -232,6 +292,23 @@ function get_metareview_prompt(prompts::Dict, config::ReviewConfig)
     base = prompts[key]
     ctx = _venue_context(config)
     detail = _detail_instructions(config.detail, :metareview)
+    prompt = isempty(ctx) ? base : ctx * "\n\n" * base
+    return isempty(detail) ? prompt : prompt * "\n\n" * detail
+end
+
+function get_selection_prompt(prompts::Dict, phase::Symbol,
+                              config::ReviewConfig, n_submissions::Int)
+    key = phase == :calibration ? "selection_calibration" :
+          phase == :discussion  ? "selection_discussion" :
+                                  "selection_metareview"
+    base = replace(replace(prompts[key],
+                   "{N_SUBMISSIONS}" => string(n_submissions)),
+                   "{N_ACCEPT}" => string(config.accept))
+    ctx = _venue_context(config)
+    detail_phase = phase == :calibration ? :selection_calibration :
+                   phase == :discussion  ? :selection_discussion :
+                                           :selection_metareview
+    detail = _detail_instructions(config.detail, detail_phase)
     prompt = isempty(ctx) ? base : ctx * "\n\n" * base
     return isempty(detail) ? prompt : prompt * "\n\n" * detail
 end
@@ -397,6 +474,56 @@ the same passage, note the convergence or divergence. Quote key passages that we
 points of contention. The goal is a meta-review the authors can use as a \
 section-by-section revision guide."""
         end
+
+    # ── Selection (batch) phases ──
+
+    elseif phase == :selection_calibration
+        if detail == 2
+            return """
+
+For each submission, go beyond a generic assessment. Cite specific claims, \
+results, or methodological choices that justify your tier assignment. Where \
+a submission has weaknesses, identify them concretely (e.g., "the argument \
+in Section 2 relies on an unstated assumption")."""
+        else  # detail == 3
+            return """
+
+For each submission, provide passage-level notes: quote a key sentence or \
+two and comment on what makes it strong or weak. Your rationale for each \
+tier assignment should reference specific text from the submission. Aim \
+for 3–5 passage-level comments per submission."""
+        end
+
+    elseif phase == :selection_discussion
+        if detail == 2
+            return """
+
+When debating borderline cases, cite specific passages or claims from the \
+submissions to support your argument. If you disagree with another committee \
+member's assessment, explain why with reference to the text."""
+        else  # detail == 3
+            return """
+
+When debating borderline cases, quote specific passages from the submissions \
+and provide your reading of them. If another committee member's assessment \
+hinges on a particular passage, quote it and give your own interpretation."""
+        end
+
+    elseif phase == :selection_metareview
+        if detail == 2
+            return """
+
+In your justifications, reference specific strengths or weaknesses from \
+the submissions rather than giving generic assessments. For borderline \
+decisions, cite the specific factors that tipped the balance."""
+        else  # detail == 3
+            return """
+
+For each submission, quote a key passage that exemplifies its main strength \
+or weakness. For borderline decisions, quote the specific passages that were \
+points of contention among committee members and explain how you weighed them."""
+        end
+
     else
         return ""
     end
