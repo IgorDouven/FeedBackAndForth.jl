@@ -100,16 +100,28 @@ function _call_openai(provider::Provider, system::String, user::String, key::Str
     if !isempty(key)
         push!(headers, "Authorization" => "Bearer $key")
     end
-    body = JSON3.write(Dict(
-        "model" => provider.model,
-        "max_tokens" => max_tokens,
-        "messages" => [
-            Dict("role" => "system", "content" => system),
-            Dict("role" => "user", "content" => user),
-        ]
-    ))
+    msgs = [
+        Dict("role" => "system", "content" => system),
+        Dict("role" => "user", "content" => user),
+    ]
+    # Newer OpenAI models require "max_completion_tokens" instead of "max_tokens".
+    # Try "max_completion_tokens" first for OpenAI's own API; if the model doesn't
+    # support it, fall back to "max_tokens". Third-party OpenAI-compatible APIs
+    # (DeepSeek, Mistral, Ollama, etc.) always use "max_tokens".
+    is_openai = contains(provider.endpoint, "api.openai.com")
+    token_key = is_openai ? "max_completion_tokens" : "max_tokens"
+    body = JSON3.write(Dict("model" => provider.model, token_key => max_tokens,
+                            "messages" => msgs))
     resp = HTTP.post(provider.endpoint, headers, body;
                      status_exception=false, connect_timeout=30, readtimeout=600)
+    if resp.status == 400 && is_openai && token_key == "max_completion_tokens" &&
+            contains(String(resp.body), "max_completion_tokens")
+        # Older OpenAI model that only accepts "max_tokens"
+        body = JSON3.write(Dict("model" => provider.model, "max_tokens" => max_tokens,
+                                "messages" => msgs))
+        resp = HTTP.post(provider.endpoint, headers, body;
+                         status_exception=false, connect_timeout=30, readtimeout=600)
+    end
     if resp.status != 200
         error("$(provider.name) API error ($(resp.status)): $(String(resp.body))")
     end
