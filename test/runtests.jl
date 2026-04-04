@@ -20,8 +20,12 @@ using FeedBackAndForth
 
     @testset "set_model!" begin
         old_model = list_providers()["gemini"].model
+        old_name = list_providers()["gemini"].name
         set_model!("gemini", "gemini-2.5-pro")
         @test list_providers()["gemini"].model == "gemini-2.5-pro"
+        # Display name should update to reflect new model
+        @test contains(list_providers()["gemini"].name, "gemini-2.5-pro")
+        @test contains(list_providers()["gemini"].name, "Google")
         # Restore original
         set_model!("gemini", old_model)
         @test list_providers()["gemini"].model == old_model

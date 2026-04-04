@@ -117,11 +117,19 @@ function set_model!(key::AbstractString, model::String)
         error("Unknown provider '$key'. Use list_providers() to see available providers.")
     end
     old = PROVIDER_REGISTRY[key]
+    # Update the display name to reflect the new model
+    # e.g. "GPT-4o (OpenAI)" → "gpt-4o-mini (OpenAI)"
+    name = if contains(old.name, "(")
+        prefix = strip(last(split(old.name, "(")), ')')
+        "$model ($prefix)"
+    else
+        model
+    end
     PROVIDER_REGISTRY[key] = Provider(
-        old.name, old.api_key_env, old.endpoint, model, old.format,
+        name, old.api_key_env, old.endpoint, model, old.format,
         old.max_tokens, old.cost_per_1k_input, old.cost_per_1k_output
     )
-    @info "Updated provider '$key' model: $(old.model) → $model"
+    @info "Updated provider '$key': $(old.name) → $name"
     return nothing
 end
 
