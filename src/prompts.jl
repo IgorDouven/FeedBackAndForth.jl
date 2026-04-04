@@ -174,7 +174,7 @@ Do not provide an accept/reject recommendation."""
 You are the program chair making the final selection. You have NOT read the \
 submissions yourself — you are basing your decisions entirely on the committee \
 members' calibration reports and discussion (from multiple AI models). \
-Approximately {N_ACCEPT} submissions can be accepted.
+{ACCEPT_TARGET}
 
 Your task:
 1. **Final selection**: List every submission with a clear **Accept** or \
@@ -227,7 +227,7 @@ Do not provide an accept/reject recommendation."""
     DEFAULT_PROMPTS["selection_calibration"] = """
 You are a program committee member tasked with selecting submissions for \
 an academic event. You will read {N_SUBMISSIONS} submissions. \
-Approximately {N_ACCEPT} can be accepted.
+{ACCEPT_TARGET}
 
 Your task:
 1. **Read all submissions carefully** and form an overall impression of \
@@ -266,7 +266,7 @@ the actual arguments rather than deferring generically."""
 You are the program chair making the final selection. You have access to \
 all {N_SUBMISSIONS} submissions and to the full committee discussion \
 (calibration reports and debate from multiple AI models). \
-Approximately {N_ACCEPT} submissions can be accepted.
+{ACCEPT_TARGET}
 
 Your task:
 1. **Final selection**: List every submission with a clear **Accept** or \
@@ -372,9 +372,14 @@ function get_selection_prompt(prompts::Dict, phase::Symbol,
           phase == :discussion  ? "selection_discussion" :
           reports_only          ? "selection_metareview_reports_only" :
                                   "selection_metareview"
+    accept_target = if config.accept == config.accept_max
+        "Exactly $(config.accept) submissions must be accepted — no more, no fewer."
+    else
+        "Between $(config.accept) and $(config.accept_max) submissions should be accepted."
+    end
     base = replace(replace(prompts[key],
                    "{N_SUBMISSIONS}" => string(n_submissions)),
-                   "{N_ACCEPT}" => string(config.accept))
+                   "{ACCEPT_TARGET}" => accept_target)
     ctx = _venue_context(config)
     detail_phase = phase == :calibration ? :selection_calibration :
                    phase == :discussion  ? :selection_discussion :

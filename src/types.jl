@@ -51,7 +51,9 @@ Configuration for a review panel session.
 - `venue_type::Symbol`: `:journal`, `:conference`, `:workshop`, or `:unspecified`
 - `refereeing::Bool`: Whether to include accept/reject recommendations (default: false)
 - `detail::Int`: Level of detail in reviews (1 = standard, 2 = detailed, 3 = passage-level)
-- `accept::Int`: Number of submissions to accept (used by `select()`, 0 = derive from acceptance_rate)
+- `accept::Int`: Exact number of submissions to accept (used by `select()`, 0 = derive from acceptance_rate)
+- `accept_max::Int`: Upper bound when accept count is derived from acceptance_rate.
+   When `accept == accept_max`, the target is exact; when they differ, it's a range.
 - `call_delay::Int`: Seconds to wait between provider API calls (default: 0). Useful for
    avoiding rate limits, especially with large payloads in `select()`.
 - `meta_reads_paper::Bool`: Whether the meta-reviewer reads the paper (default: true).
@@ -72,6 +74,7 @@ Base.@kwdef mutable struct ReviewConfig
     refereeing::Bool = false
     detail::Int = 1
     accept::Int = 0
+    accept_max::Int = 0
     call_delay::Int = 0
     meta_reads_paper::Bool = true
 end

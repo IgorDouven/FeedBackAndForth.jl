@@ -498,16 +498,19 @@ function select(submissions_dir::AbstractString;
     if config.accept <= 0
         lo, hi = config.acceptance_rate
         if lo > 0 || hi > 0
-            rate = (lo + hi) / 2
-            config.accept = max(1, round(Int, rate * n_sub))
-            _log(config, "📊 Target accepts: $(config.accept) " *
-                         "($(round(Int, rate*100))% of $n_sub)\n")
+            config.accept = max(1, round(Int, lo * n_sub))
+            config.accept_max = max(config.accept, round(Int, hi * n_sub))
+            lo_pct = round(Int, lo * 100)
+            hi_pct = round(Int, hi * 100)
+            _log(config, "📊 Target accepts: $(config.accept)–$(config.accept_max) " *
+                         "($(lo_pct)–$(hi_pct)% of $n_sub)\n")
         else
             error("Must specify either `accept` (number of submissions to accept) " *
                   "or `acceptance_rate`.")
         end
     else
-        _log(config, "📊 Target accepts: $(config.accept) of $n_sub\n")
+        config.accept_max = config.accept
+        _log(config, "📊 Target accepts: exactly $(config.accept) of $n_sub\n")
     end
 
     # Detect providers

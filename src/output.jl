@@ -160,7 +160,12 @@ function save_markdown(panel::SelectionPanel, path::String="")
     names = [p.name for (_, p) in panel.providers_used]
     println(io, "**Committee**: $(join(names, ", "))\n")
     println(io, "**Submissions**: $(length(panel.submission_files))\n")
-    println(io, "**Target accepts**: $(panel.n_accept)\n")
+    accept_str = if panel.config.accept == panel.config.accept_max
+        "exactly $(panel.n_accept)"
+    else
+        "$(panel.config.accept)–$(panel.config.accept_max)"
+    end
+    println(io, "**Target accepts**: $accept_str\n")
     if panel.config.detail > 1
         detail_label = panel.config.detail == 2 ? "Detailed" : "Passage-level"
         println(io, "**Detail level**: $(panel.config.detail) ($detail_label)\n")
@@ -233,6 +238,7 @@ function save_json(panel::SelectionPanel, path::String="")
         "submission_dir" => panel.submission_dir,
         "n_submissions" => length(panel.submission_files),
         "n_accept" => panel.n_accept,
+        "n_accept_max" => panel.config.accept_max,
         "submissions" => [
             Dict("file" => f, "chars" => l)
             for (f, l) in zip(panel.submission_files, panel.submission_lengths)
@@ -291,16 +297,22 @@ end
 function Base.show(io::IO, panel::SelectionPanel)
     n_sub = length(panel.submission_files)
     n_prov = length(panel.providers_used)
+    accept_str = panel.config.accept == panel.config.accept_max ?
+        "accept=$(panel.n_accept)" :
+        "accept=$(panel.config.accept)–$(panel.config.accept_max)"
     print(io, "SelectionPanel($n_sub submissions, $n_prov providers, " *
-              "accept=$(panel.n_accept), " *
+              "$accept_str, " *
               "≈\$$(round(estimated_cost(panel.cost); digits=3)))")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", panel::SelectionPanel)
     names = join([p.name for (_, p) in panel.providers_used], ", ")
+    accept_str = panel.config.accept == panel.config.accept_max ?
+        "exactly $(panel.n_accept)" :
+        "$(panel.config.accept)–$(panel.config.accept_max)"
     println(io, "LLM Selection Panel")
     println(io, "  Submissions: $(length(panel.submission_files)) from $(panel.submission_dir)")
-    println(io, "  Target accepts: $(panel.n_accept)")
+    println(io, "  Target accepts: $accept_str")
     println(io, "  Committee: $names")
     println(io, "  Program chair: $(panel.meta_provider_key)")
     println(io, "  Time: $(round(panel.total_elapsed; digits=1))s")

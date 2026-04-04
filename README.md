@@ -367,14 +367,17 @@ Output:   Markdown transcript + JSON for analysis
 For conference organizers: `select()` evaluates a directory of submissions as a batch, rather than reviewing papers individually. The LLM panel first reads *all* submissions to calibrate to the overall quality level, then discusses and debates rankings, and finally produces a selection — mirroring how a real program committee works.
 
 ```julia
-# Select submissions for a conference (specify target number of accepts)
+# Select submissions for a conference (exact target)
+# The LLMs are instructed to accept exactly 50, no more, no fewer.
 panel = select("submissions/",
     accept = 50,
     venue = "EPSA 2026",
     venue_type = :conference
 )
 
-# Or derive the accept count from an acceptance rate
+# Or specify an acceptance rate range for a flexible target
+# With 200 submissions at 20–30%, the LLMs are told to accept
+# between 40 and 60 submissions.
 panel = select("submissions/",
     acceptance_rate = (0.20, 0.30),
     venue = "EPSA 2026",
