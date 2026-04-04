@@ -6,6 +6,14 @@ function _log(config::ReviewConfig, msg::String)
     config.verbose && println(msg)
 end
 
+# If call_delay > 0 and this is not the first call, pause between providers.
+function _maybe_delay(config::ReviewConfig, i::Int)
+    if config.call_delay > 0 && i > 1
+        _log(config, "  ⏸  Waiting $(config.call_delay)s (rate limit delay)...")
+        sleep(config.call_delay)
+    end
+end
+
 """
     _effective_max_tokens(provider, config) -> Int
 
@@ -30,7 +38,8 @@ function _run_round1(paper::String, providers::Vector{Tuple{String, Provider}},
 
     system = get_review_prompt(prompts, config)
 
-    for (key, prov) in providers
+    for (i, (key, prov)) in enumerate(providers)
+        _maybe_delay(config, i)
         _log(config, "  ⏳ Requesting review from $(prov.name)...")
         t0 = time()
         try
@@ -82,7 +91,8 @@ function _run_discussion(paper::String, prev_reviews::Dict{String, String},
 
     system = get_discussion_prompt(prompts, round_num, config)
 
-    for (key, prov) in providers
+    for (i, (key, prov)) in enumerate(providers)
+        _maybe_delay(config, i)
         others = _format_other_reviews(prev_reviews, key)
         own = get(prev_reviews, key, "")
 
@@ -216,7 +226,8 @@ function _run_author_response(paper::String, all_rounds::Vector{RoundResult},
 
     system = config.refereeing ? prompts["author_response"] : prompts["author_response_no_verdict"]
 
-    for (key, prov) in providers
+    for (i, (key, prov)) in enumerate(providers)
+        _maybe_delay(config, i)
         own = get(last_reviews, key, "")
 
         user_msg = """
@@ -322,7 +333,8 @@ function _run_calibration(bundle::String, providers::Vector{Tuple{String, Provid
 
     system = get_selection_prompt(prompts, :calibration, config, n_submissions)
 
-    for (key, prov) in providers
+    for (i, (key, prov)) in enumerate(providers)
+        _maybe_delay(config, i)
         _log(config, "  ⏳ $(prov.name) reading all submissions...")
         t0 = time()
         try
@@ -362,7 +374,8 @@ function _run_selection_discussion(bundle::String, calibrations::Dict{String, St
 
     system = get_selection_prompt(prompts, :discussion, config, n_submissions)
 
-    for (key, prov) in providers
+    for (i, (key, prov)) in enumerate(providers)
+        _maybe_delay(config, i)
         others = _format_other_reviews(calibrations, key)
         own = get(calibrations, key, "")
 

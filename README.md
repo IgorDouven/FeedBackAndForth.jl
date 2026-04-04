@@ -358,6 +358,18 @@ The three-phase pipeline:
 2. **Discussion**: The committee members see each other's tierings, debate borderline cases, and revise their rankings.
 3. **Final Selection**: The program chair (meta-reviewer) produces the definitive accept/reject list with justifications.
 
+**Rate limits**: Because `select()` sends large payloads, some providers with low tokens-per-minute caps (e.g., OpenAI, Mistral) may return rate limit errors. Use `call_delay=60` to add a pause (in seconds) between provider calls:
+
+```julia
+panel = select("submissions/",
+    accept = 20,
+    providers = ["openai", "gemini", "deepseek"],
+    call_delay = 60
+)
+```
+
+The `call_delay` option also works with `review()`.
+
 **Context window requirements**: All submissions are sent to each LLM in a single prompt. This works well for typical conference scenarios (e.g., 250 extended abstracts of ~800 words ≈ 200K tokens), but requires frontier models with large context windows (Claude, Gemini). Local models and smaller cloud models will likely not be able to handle large batches. For very large conferences (1000+ submissions), this approach is currently not feasible due to context window limits.
 
 ### Changing Models

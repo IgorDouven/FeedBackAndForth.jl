@@ -52,6 +52,8 @@ Configuration for a review panel session.
 - `refereeing::Bool`: Whether to include accept/reject recommendations (default: false)
 - `detail::Int`: Level of detail in reviews (1 = standard, 2 = detailed, 3 = passage-level)
 - `accept::Int`: Number of submissions to accept (used by `select()`, 0 = derive from acceptance_rate)
+- `call_delay::Int`: Seconds to wait between provider API calls (default: 0). Useful for
+   avoiding rate limits, especially with large payloads in `select()`.
 """
 Base.@kwdef mutable struct ReviewConfig
     rounds::Int = 2
@@ -66,6 +68,7 @@ Base.@kwdef mutable struct ReviewConfig
     refereeing::Bool = false
     detail::Int = 1
     accept::Int = 0
+    call_delay::Int = 0
 end
 
 """

@@ -122,7 +122,7 @@ end
 """
     review(paper_path; rounds=2, providers=String[], meta="",
            scores=false, refereeing=false, detail=1,
-           prompts_file="", output="",
+           prompts_file="", output="", call_delay=0,
            verbose=true, acceptance_rate=(0.0, 0.0), venue="",
            venue_type=:unspecified) -> ReviewPanel
 
@@ -139,6 +139,8 @@ Run a full review panel session on a paper.
 - `refereeing`: Include accept/reject recommendations (default: false)
 - `detail`: Level of detail (1 = standard, 2 = detailed with concrete citations,
    3 = passage-level commentary). Default: 1
+- `call_delay`: Seconds to wait between provider API calls (default: 0). Helps
+   avoid rate limits with providers that have low tokens-per-minute caps.
 - `prompts_file`: Path to a TOML file with custom prompts
 - `output`: Output file path (empty = auto-generate)
 - `verbose`: Print progress messages
@@ -197,6 +199,7 @@ function review(paper_path::AbstractString;
                 scores::Bool=false,
                 refereeing::Bool=false,
                 detail::Int=1,
+                call_delay::Int=0,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
                 verbose::Bool=true,
@@ -212,6 +215,7 @@ function review(paper_path::AbstractString;
     config = ReviewConfig(
         rounds=rounds, providers=providers, meta_provider=string(meta),
         request_scores=scores, refereeing=refereeing, detail=detail,
+        call_delay=call_delay,
         prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
@@ -387,6 +391,8 @@ then decide.
 - `meta`: Which provider makes the final selection (default: first in `providers`).
    Can be a non-participating provider (independent program chair).
 - `detail`: Level of detail (1–3) in calibration reports
+- `call_delay`: Seconds to wait between provider API calls (default: 0). Recommended
+   for `select()` since the large payloads can trigger rate limits.
 - `prompts_file`: Path to a TOML file with custom prompts
 - `output`: Output file path (empty = auto-generate)
 - `verbose`: Print progress messages
@@ -436,6 +442,7 @@ function select(submissions_dir::AbstractString;
                 providers::Vector{String}=String[],
                 meta::AbstractString="",
                 detail::Int=1,
+                call_delay::Int=0,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
                 verbose::Bool=true,
@@ -453,6 +460,7 @@ function select(submissions_dir::AbstractString;
     config = ReviewConfig(
         rounds=2, providers=providers, meta_provider=string(meta),
         request_scores=false, refereeing=true, detail=detail,
+        call_delay=call_delay,
         prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
