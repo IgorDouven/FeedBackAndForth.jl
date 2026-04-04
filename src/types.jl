@@ -54,6 +54,10 @@ Configuration for a review panel session.
 - `accept::Int`: Number of submissions to accept (used by `select()`, 0 = derive from acceptance_rate)
 - `call_delay::Int`: Seconds to wait between provider API calls (default: 0). Useful for
    avoiding rate limits, especially with large payloads in `select()`.
+- `meta_reads_paper::Bool`: Whether the meta-reviewer reads the paper (default: true).
+   When `false`, the meta-reviewer only sees the panel's reviews/discussion — like
+   a handling editor who bases their verdict on the referee reports. Ignored when
+   the meta-reviewer is on the panel (since they already read the paper).
 """
 Base.@kwdef mutable struct ReviewConfig
     rounds::Int = 2
@@ -69,6 +73,7 @@ Base.@kwdef mutable struct ReviewConfig
     detail::Int = 1
     accept::Int = 0
     call_delay::Int = 0
+    meta_reads_paper::Bool = true
 end
 
 """

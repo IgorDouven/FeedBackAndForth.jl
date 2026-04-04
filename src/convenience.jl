@@ -122,6 +122,7 @@ end
 """
     review(paper_path; rounds=2, providers=String[], meta="",
            scores=false, refereeing=false, detail=1,
+           meta_reads_paper=true,
            prompts_file="", output="", call_delay=0,
            verbose=true, acceptance_rate=(0.0, 0.0), venue="",
            venue_type=:unspecified) -> ReviewPanel
@@ -139,6 +140,11 @@ Run a full review panel session on a paper.
 - `refereeing`: Include accept/reject recommendations (default: false)
 - `detail`: Level of detail (1 = standard, 2 = detailed with concrete citations,
    3 = passage-level commentary). Default: 1
+- `meta_reads_paper`: Whether the meta-reviewer reads the paper (default: true).
+   When `false` and the meta-reviewer is not on the panel, the meta-reviewer only
+   sees the reviewers' reports — like a handling editor who bases their verdict on
+   referee reports without reading the paper. Ignored when the meta-reviewer is a
+   panelist (they already read the paper during the review rounds).
 - `call_delay`: Seconds to wait between provider API calls (default: 0). Helps
    avoid rate limits with providers that have low tokens-per-minute caps.
 - `prompts_file`: Path to a TOML file with custom prompts
@@ -199,6 +205,7 @@ function review(paper_path::AbstractString;
                 scores::Bool=false,
                 refereeing::Bool=false,
                 detail::Int=1,
+                meta_reads_paper::Bool=true,
                 call_delay::Int=0,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
@@ -215,7 +222,7 @@ function review(paper_path::AbstractString;
     config = ReviewConfig(
         rounds=rounds, providers=providers, meta_provider=string(meta),
         request_scores=scores, refereeing=refereeing, detail=detail,
-        call_delay=call_delay,
+        meta_reads_paper=meta_reads_paper, call_delay=call_delay,
         prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
@@ -259,6 +266,12 @@ function review(paper_path::AbstractString;
         end
     else
         provs[1]
+    end
+
+    # Warn if meta_reads_paper=false but meta-reviewer is on the panel
+    if !config.meta_reads_paper && any(k == meta_prov[1] for (k, _) in provs)
+        _log(config, "⚠  meta_reads_paper=false ignored: meta-reviewer is on the panel " *
+                     "(already reads the paper during review rounds)\n")
     end
 
     # Get prompts
@@ -373,7 +386,8 @@ end
 
 """
     select(submissions_dir; accept=0, providers=String[], meta="",
-           detail=1, prompts_file="", output="", verbose=true,
+           detail=1, meta_reads_paper=true,
+           prompts_file="", output="", verbose=true,
            acceptance_rate=(0.0, 0.0), venue="", venue_type=:unspecified)
            -> SelectionPanel
 
@@ -391,6 +405,9 @@ then decide.
 - `meta`: Which provider makes the final selection (default: first in `providers`).
    Can be a non-participating provider (independent program chair).
 - `detail`: Level of detail (1–3) in calibration reports
+- `meta_reads_paper`: Whether the program chair reads the submissions (default: true).
+   When `false` and the program chair is not on the committee, they only see the
+   committee's reports — like an editor deciding based on referee reports alone.
 - `call_delay`: Seconds to wait between provider API calls (default: 0). Recommended
    for `select()` since the large payloads can trigger rate limits.
 - `prompts_file`: Path to a TOML file with custom prompts
@@ -442,6 +459,7 @@ function select(submissions_dir::AbstractString;
                 providers::Vector{String}=String[],
                 meta::AbstractString="",
                 detail::Int=1,
+                meta_reads_paper::Bool=true,
                 call_delay::Int=0,
                 prompts_file::AbstractString="",
                 output::AbstractString="",
@@ -460,7 +478,7 @@ function select(submissions_dir::AbstractString;
     config = ReviewConfig(
         rounds=2, providers=providers, meta_provider=string(meta),
         request_scores=false, refereeing=true, detail=detail,
-        call_delay=call_delay,
+        meta_reads_paper=meta_reads_paper, call_delay=call_delay,
         prompts_file=string(prompts_file),
         verbose=verbose,
         acceptance_rate=Float64.(acceptance_rate),
@@ -516,6 +534,12 @@ function select(submissions_dir::AbstractString;
         end
     else
         provs[1]
+    end
+
+    # Warn if meta_reads_paper=false but program chair is on the committee
+    if !config.meta_reads_paper && any(k == meta_prov[1] for (k, _) in provs)
+        _log(config, "⚠  meta_reads_paper=false ignored: program chair is on the committee " *
+                     "(already reads submissions during calibration)\n")
     end
 
     prompts = get_prompts(config)

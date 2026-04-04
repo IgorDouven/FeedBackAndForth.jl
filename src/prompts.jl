@@ -129,6 +129,69 @@ insights that others missed — this is useful for understanding model diversity
 Be concise but thorough. The goal is an actionable summary for the authors. \
 Do not provide an accept/reject recommendation."""
 
+    DEFAULT_PROMPTS["metareview_reports_only"] = """
+You are the meta-reviewer (area chair) for this paper. You have NOT read the \
+paper itself — you are basing your assessment entirely on the review panel's \
+reports and discussion (from multiple AI models from different providers), \
+much like a handling editor who relies on referee reports. Your task:
+
+1. **Synthesize**: Summarize the key points of agreement and disagreement \
+among the reviewers.
+2. **Adjudicate**: Where reviewers disagree, assess who has the stronger \
+argument based on the reasoning and evidence presented in their reports.
+3. **Consolidate feedback**: Produce a single, prioritized list of the most \
+important issues the authors should address, as reported by the reviewers.
+4. **Overall recommendation**: Give a final recommendation with justification, \
+weighing the panel's collective input.
+5. **Meta-observations**: Note if certain models contributed distinctive \
+insights that others missed — this is useful for understanding model diversity.
+
+Be concise but thorough. The goal is an actionable summary for the authors. \
+Since you have not read the paper, ground your synthesis in what the reviewers \
+report rather than making independent claims about the paper's content."""
+
+    DEFAULT_PROMPTS["metareview_reports_only_no_verdict"] = """
+You are the meta-reviewer for this paper. You have NOT read the paper itself — \
+you are basing your assessment entirely on the review panel's reports and \
+discussion (from multiple AI models from different providers), much like a \
+handling editor who relies on referee reports. Your task:
+
+1. **Synthesize**: Summarize the key points of agreement and disagreement \
+among the reviewers.
+2. **Adjudicate**: Where reviewers disagree, assess who has the stronger \
+argument based on the reasoning and evidence presented in their reports.
+3. **Consolidate feedback**: Produce a single, prioritized list of the most \
+important issues the authors should address, as reported by the reviewers.
+4. **Meta-observations**: Note if certain models contributed distinctive \
+insights that others missed — this is useful for understanding model diversity.
+
+Be concise but thorough. The goal is an actionable summary for the authors. \
+Since you have not read the paper, ground your synthesis in what the reviewers \
+report rather than making independent claims about the paper's content. \
+Do not provide an accept/reject recommendation."""
+
+    DEFAULT_PROMPTS["selection_metareview_reports_only"] = """
+You are the program chair making the final selection. You have NOT read the \
+submissions yourself — you are basing your decisions entirely on the committee \
+members' calibration reports and discussion (from multiple AI models). \
+Approximately {N_ACCEPT} submissions can be accepted.
+
+Your task:
+1. **Final selection**: List every submission with a clear **Accept** or \
+**Reject** decision.
+2. **Brief justification**: For each submission, provide a 2–3 sentence \
+justification based on what the committee members reported.
+3. **Borderline commentary**: For submissions near the boundary, explain \
+what tipped the decision and note any dissent among committee members.
+4. **Summary**: Provide a brief overall summary of the selection \
+(common strengths of accepted submissions, common weaknesses of \
+rejected ones, and any themes or observations about the batch).
+
+Present the accepted submissions first (ranked by strength), then the \
+rejected submissions. Be decisive, fair, and transparent. Ground your \
+reasoning in the committee's reports rather than making independent claims \
+about the submissions."""
+
     DEFAULT_PROMPTS["author_response"] = """
 You are participating in a follow-up round of a multi-reviewer discussion \
 panel. The authors have now responded to the panel's feedback. Your task:
@@ -287,19 +350,27 @@ function get_discussion_prompt(prompts::Dict, round_num::Int, config::ReviewConf
     return isempty(detail) ? prompt : prompt * "\n\n" * detail
 end
 
-function get_metareview_prompt(prompts::Dict, config::ReviewConfig)
-    key = config.refereeing ? "metareview" : "metareview_no_verdict"
+function get_metareview_prompt(prompts::Dict, config::ReviewConfig;
+                               reports_only::Bool=false)
+    key = if reports_only
+        config.refereeing ? "metareview_reports_only" : "metareview_reports_only_no_verdict"
+    else
+        config.refereeing ? "metareview" : "metareview_no_verdict"
+    end
     base = prompts[key]
     ctx = _venue_context(config)
-    detail = _detail_instructions(config.detail, :metareview)
+    phase = reports_only ? :metareview_reports_only : :metareview
+    detail = _detail_instructions(config.detail, phase)
     prompt = isempty(ctx) ? base : ctx * "\n\n" * base
     return isempty(detail) ? prompt : prompt * "\n\n" * detail
 end
 
 function get_selection_prompt(prompts::Dict, phase::Symbol,
-                              config::ReviewConfig, n_submissions::Int)
+                              config::ReviewConfig, n_submissions::Int;
+                              reports_only::Bool=false)
     key = phase == :calibration ? "selection_calibration" :
           phase == :discussion  ? "selection_discussion" :
+          reports_only          ? "selection_metareview_reports_only" :
                                   "selection_metareview"
     base = replace(replace(prompts[key],
                    "{N_SUBMISSIONS}" => string(n_submissions)),
@@ -473,6 +544,23 @@ specific passages and sections of the paper. Where multiple reviewers commented 
 the same passage, note the convergence or divergence. Quote key passages that were \
 points of contention. The goal is a meta-review the authors can use as a \
 section-by-section revision guide."""
+        end
+
+    elseif phase == :metareview_reports_only
+        if detail == 2
+            return """
+
+When synthesizing the panel's feedback, be concrete: reference specific sections \
+and issues as described by the reviewers. The consolidated feedback \
+list should be actionable based on what the reviewers report."""
+        else  # detail == 3
+            return """
+
+When synthesizing the panel's feedback, organize the consolidated feedback around \
+specific passages and sections as cited by the reviewers. Where multiple reviewers \
+commented on the same aspect, note the convergence or divergence. Quote key excerpts \
+from the reviews that highlight points of contention. The goal is a meta-review the \
+authors can use as a revision guide, grounded in the reviewers' reports."""
         end
 
     # ── Selection (batch) phases ──

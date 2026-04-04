@@ -156,7 +156,21 @@ function _run_metareview(paper::String, all_rounds::Vector{RoundResult},
     end
     history = join(parts, "\n")
 
-    user_msg = """
+    # Determine whether to include the paper text
+    reports_only = !config.meta_reads_paper &&
+                   !any(k == meta_prov[1] for (k, _) in providers)
+
+    user_msg = if reports_only
+        """
+## Full Discussion History
+
+$history
+
+---
+
+Please provide your meta-review based on the reviewers' reports above."""
+    else
+        """
 ## The Paper
 
 $paper
@@ -168,12 +182,17 @@ $history
 ---
 
 Please provide your meta-review."""
+    end
 
     key, prov = meta_prov
+    if reports_only
+        _log(config, "  📋 Meta-reviewer will not read the paper (reports-only mode)")
+    end
     _log(config, "  ⏳ $(prov.name) writing meta-review...")
     t0 = time()
     try
-        text, tokens = call_llm(prov, get_metareview_prompt(prompts, config), user_msg;
+        text, tokens = call_llm(prov, get_metareview_prompt(prompts, config;
+                                                             reports_only=reports_only), user_msg;
                                 max_tokens=_effective_max_tokens(prov, config))
         dt = round(time() - t0; digits=1)
         _log(config, "  ✅ Meta-review complete ($(dt)s, $(tokens.input)+$(tokens.output) tokens)")
@@ -189,7 +208,8 @@ Please provide your meta-review."""
             _log(config, "  🔄 Falling back to $(fprov.name) for meta-review...")
             t0 = time()
             try
-                text, tokens = call_llm(fprov, get_metareview_prompt(prompts, config), user_msg)
+                text, tokens = call_llm(fprov, get_metareview_prompt(prompts, config;
+                                                                    reports_only=reports_only), user_msg)
                 dt = round(time() - t0; digits=1)
                 _log(config, "  ✅ Meta-review complete via $(fprov.name) ($(dt)s)")
                 record!(cost, fkey, tokens.input, tokens.output)
@@ -444,7 +464,21 @@ function _run_selection_metareview(bundle::String,
     end
     history = join(parts, "\n")
 
-    user_msg = """
+    # Determine whether to include the submissions
+    reports_only = !config.meta_reads_paper &&
+                   !any(k == meta_prov[1] for (k, _) in providers)
+
+    user_msg = if reports_only
+        """
+## Committee Discussion
+
+$history
+
+---
+
+Please provide your final selection based on the committee's reports above."""
+    else
+        """
 ## All Submissions
 
 $bundle
@@ -456,10 +490,15 @@ $history
 ---
 
 Please provide your final selection."""
+    end
 
-    system = get_selection_prompt(prompts, :metareview, config, n_submissions)
+    system = get_selection_prompt(prompts, :metareview, config, n_submissions;
+                                  reports_only=reports_only)
     key, prov = meta_prov
 
+    if reports_only
+        _log(config, "  📋 Program chair will not read the submissions (reports-only mode)")
+    end
     _log(config, "  ⏳ $(prov.name) making final selection...")
     t0 = time()
     try

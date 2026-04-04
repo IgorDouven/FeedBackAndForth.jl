@@ -94,6 +94,16 @@ panel = review("paper.tex",
     providers = ["gemma", "phi", "qwen"],
     meta = "claude"
 )
+
+# Reports-only meta-reviewer (handling editor mode)
+# The meta-reviewer reads only the panel's reviews, not the paper itself —
+# like a handling editor who bases their verdict on referee reports.
+# Only works when the meta-reviewer is NOT on the panel.
+panel = review("paper.tex",
+    providers = ["gemma", "phi", "qwen"],
+    meta = "claude",
+    meta_reads_paper = false
+)
 ```
 
 ### Venue Calibration
@@ -182,6 +192,36 @@ panel = review("paper.tex",
 ```
 
 **Token limits are scaled automatically**: at higher detail levels, the maximum output tokens sent to each provider are scaled up (1.8× for level 2, 3× for level 3) so that models have room to produce longer reviews without truncation. This applies to both cloud and local providers.
+
+### Reports-Only Meta-Reviewer
+
+By default, the meta-reviewer reads both the paper and the full panel discussion. Setting `meta_reads_paper=false` creates a "handling editor" mode where the meta-reviewer sees *only* the reviewers' reports, not the paper itself — mirroring how many real-world editors form their verdict primarily from the referee reports they receive.
+
+```julia
+# Independent meta-reviewer that only reads the reports
+panel = review("paper.tex",
+    providers = ["gemini", "deepseek", "mistral"],
+    meta = "claude",
+    meta_reads_paper = false
+)
+```
+
+This option:
+- **Only takes effect when the meta-reviewer is not on the panel** (i.e., when `meta` names a provider not in `providers`). If the meta-reviewer is a panelist, they already read the paper during the review rounds, so the flag is ignored with a warning.
+- **Reduces token usage** for the meta-review call, since the paper text is not included.
+- **Produces a different style of meta-review**: the meta-reviewer focuses purely on synthesizing and adjudicating the reviewers' arguments rather than re-evaluating the paper independently. This can yield better synthesis in some cases, since the model is not tempted to "re-review" the paper.
+- **Works with `select()` too**: set `meta_reads_paper=false` so the program chair decides based on the committee's reports without re-reading all submissions.
+
+```julia
+panel = select("submissions/",
+    accept = 20,
+    providers = ["gemini", "deepseek"],
+    meta = "claude",
+    meta_reads_paper = false
+)
+```
+
+The reports-only prompts are customizable via TOML files, using the keys `metareview_reports_only`, `metareview_reports_only_no_verdict`, and `selection_metareview_reports_only`.
 
 ### Including Local Models
 
