@@ -12,7 +12,7 @@ The design draws on insights from the crowd wisdom literature, where aggregation
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/IgorDouven/FeedBackAndForth.jl")
+Pkg.add("FeedBackAndForth")
 ```
 
 ## API Keys & Costs
