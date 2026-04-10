@@ -1,7 +1,7 @@
 name = "FeedBackAndForth"
 uuid = "f4b1a2c3-d5e6-7f89-0a1b-c2d3e4f5a6b7"
 authors = ["Igor Douven <igor.douven@gmail.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
