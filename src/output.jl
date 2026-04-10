@@ -6,12 +6,19 @@
     save_markdown(panel::ReviewPanel, path::String="") -> String
 
 Write the full panel transcript to a Markdown file. Returns the path.
-If `path` is empty, auto-generates a filename.
+
+`path` can be:
+- empty (default): auto-generates a filename in the current directory
+- a directory: auto-generates a filename inside that directory
+- a full file path: used as-is
 """
 function save_markdown(panel::ReviewPanel, path::String="")
+    bn = first(splitext(basename(panel.paper_path)))
+    auto_name = "review_panel_$(bn)_$(Dates.format(now(), "yyyymmdd_HHMM")).md"
     if isempty(path)
-        bn = first(splitext(basename(panel.paper_path)))
-        path = "review_panel_$(bn)_$(Dates.format(now(), "yyyymmdd_HHMM")).md"
+        path = auto_name
+    elseif isdir(path)
+        path = joinpath(path, auto_name)
     end
 
     io = IOBuffer()
@@ -77,11 +84,16 @@ end
 
 Save a machine-readable JSON representation of the panel results.
 Useful for downstream analysis (e.g., comparing across papers or rounds).
+
+`path` can be empty (auto-generates filename), a directory, or a full file path.
 """
 function save_json(panel::ReviewPanel, path::String="")
+    bn = first(splitext(basename(panel.paper_path)))
+    auto_name = "review_panel_$(bn)_$(Dates.format(now(), "yyyymmdd_HHMM")).json"
     if isempty(path)
-        bn = first(splitext(basename(panel.paper_path)))
-        path = "review_panel_$(bn)_$(Dates.format(now(), "yyyymmdd_HHMM")).json"
+        path = auto_name
+    elseif isdir(path)
+        path = joinpath(path, auto_name)
     end
 
     data = Dict(
@@ -146,11 +158,19 @@ end
     save_markdown(panel::SelectionPanel, path::String="") -> String
 
 Write the full selection transcript to a Markdown file. Returns the path.
+
+`path` can be:
+- empty (default): auto-generates a filename in the current directory
+- a directory: auto-generates a filename inside that directory
+- a full file path: used as-is
 """
 function save_markdown(panel::SelectionPanel, path::String="")
+    dn = basename(rstrip(panel.submission_dir, '/'))
+    auto_name = "selection_$(dn)_$(Dates.format(now(), "yyyymmdd_HHMM")).md"
     if isempty(path)
-        dn = basename(rstrip(panel.submission_dir, '/'))
-        path = "selection_$(dn)_$(Dates.format(now(), "yyyymmdd_HHMM")).md"
+        path = auto_name
+    elseif isdir(path)
+        path = joinpath(path, auto_name)
     end
 
     io = IOBuffer()
@@ -226,11 +246,16 @@ end
     save_json(panel::SelectionPanel, path::String="") -> String
 
 Save a machine-readable JSON representation of the selection results.
+
+`path` can be empty (auto-generates filename), a directory, or a full file path.
 """
 function save_json(panel::SelectionPanel, path::String="")
+    dn = basename(rstrip(panel.submission_dir, '/'))
+    auto_name = "selection_$(dn)_$(Dates.format(now(), "yyyymmdd_HHMM")).json"
     if isempty(path)
-        dn = basename(rstrip(panel.submission_dir, '/'))
-        path = "selection_$(dn)_$(Dates.format(now(), "yyyymmdd_HHMM")).json"
+        path = auto_name
+    elseif isdir(path)
+        path = joinpath(path, auto_name)
     end
 
     data = Dict(
