@@ -355,9 +355,9 @@ Output:   Markdown transcript + JSON for analysis
 
 | Key        | Provider        | Model (default)          | API format          |
 |------------|-----------------|--------------------------|---------------------|
-| `claude`   | Anthropic       | claude-sonnet-4-20250514 | Anthropic Messages  |
-| `openai`   | OpenAI          | gpt-4o                   | OpenAI Chat         |
-| `gemini`   | Google          | gemini-2.5-flash         | Google GenAI        |
+| `claude`   | Anthropic       | claude-opus-4-7          | Anthropic Messages  |
+| `openai`   | OpenAI          | gpt-5.4                  | OpenAI Chat         |
+| `gemini`   | Google          | gemini-3.1-pro-preview   | Google GenAI        |
 | `deepseek` | DeepSeek        | deepseek-chat            | OpenAI-compatible   |
 | `mistral`  | Mistral         | mistral-large-latest     | OpenAI-compatible   |
 | *(custom)* | Ollama / vLLM / LM Studio / ... | any           | OpenAI-compatible   |
@@ -420,14 +420,14 @@ The `call_delay` option also works with `review()`.
 To use a different model for any built-in provider, use `set_model!`:
 
 ```julia
-# Switch Gemini to the Pro model
-set_model!("gemini", "gemini-2.5-pro")
+# Switch Gemini to the Flash model
+set_model!("gemini", "gemini-3.1-flash")
 
 # Use a different Claude model
-set_model!("claude", "claude-opus-4-20250514")
+set_model!("claude", "claude-sonnet-4-6")
 
 # Use a different OpenAI model
-set_model!("openai", "gpt-4.1")
+set_model!("openai", "gpt-5.4-mini")
 ```
 
 This keeps all other provider settings (endpoint, API key, pricing) intact. To see the current providers and their models, use `list_providers()`.

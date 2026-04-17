@@ -9,19 +9,19 @@ function _init_providers!()
         "claude" => Provider(
             "Claude (Anthropic)", "ANTHROPIC_API_KEY",
             "https://api.anthropic.com/v1/messages",
-            "claude-sonnet-4-20250514", :anthropic, 8192,
+            "claude-opus-4-7", :anthropic, 8192,
             0.003, 0.015
         ),
         "openai" => Provider(
-            "GPT-4o (OpenAI)", "OPENAI_API_KEY",
+            "GPT-5.4 (OpenAI)", "OPENAI_API_KEY",
             "https://api.openai.com/v1/chat/completions",
-            "gpt-4o", :openai, 8192,
+            "gpt-5.4", :openai, 8192,
             0.0025, 0.010
         ),
         "gemini" => Provider(
             "Gemini (Google)", "GOOGLE_API_KEY",
             "https://generativelanguage.googleapis.com/v1beta/models",
-            "gemini-2.5-flash", :google, 8192,
+            "gemini-3.1-pro-preview", :google, 8192,
             0.00015, 0.0006
         ),
         "deepseek" => Provider(
@@ -107,8 +107,8 @@ or different model without re-registering the provider.
 # Example
 
 ```julia
-set_model!("gemini", "gemini-2.5-pro")
-set_model!("claude", "claude-opus-4-20250514")
+set_model!("gemini", "gemini-3.1-pro")
+set_model!("claude", "claude-opus-4-7")
 ```
 """
 function set_model!(key::AbstractString, model::String)
@@ -118,7 +118,7 @@ function set_model!(key::AbstractString, model::String)
     end
     old = PROVIDER_REGISTRY[key]
     # Update the display name to reflect the new model
-    # e.g. "GPT-4o (OpenAI)" → "gpt-4o-mini (OpenAI)"
+    # e.g. "GPT-5.4 (OpenAI)" → "gpt-5.4-mini (OpenAI)"
     name = if contains(old.name, "(")
         prefix = strip(last(split(old.name, "(")), ')')
         "$model ($prefix)"
